@@ -115,7 +115,7 @@
         .fab-container.open .fab-item:nth-child(2) { transform: translate(-45px, -45px); opacity: 1; pointer-events: auto; }
         .fab-container.open .fab-item:nth-child(3) { transform: translateX(-60px); opacity: 1; pointer-events: auto; }
 
-        /* 全屏视图 (Detail, FilteredList) */
+        /* Full View (Detail, Filtered) */
         .full-view {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(200, 220, 255, 0.15);
@@ -142,14 +142,10 @@
             color: white; box-sizing: border-box; outline: none;
             font-size: 14px; margin-bottom: 10px;
         }
-        .input-glass::placeholder { color: rgba(255,255,255,0.5); }
-        
         .stat-row {
             padding: 15px; border-radius: 12px; background: rgba(255,255,255,0.1);
-            margin-bottom: 8px; display: flex; justify-content: space-between;
-            align-items: center;
+            margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
         }
-        .stat-row:active { background: rgba(255,255,255,0.2); }
 
         /* Modal */
         .modal-mask {
@@ -165,14 +161,56 @@
         }
         .modal-mask.show .modal-card { transform: scale(1); }
 
-        /* Cropper */
+        /* Action Sheet & Mask */
+        .action-mask {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.3); z-index: 500;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        .action-mask.show { opacity: 1; pointer-events: auto; }
+
+        .action-sheet {
+            position: fixed; bottom: 0; left: 0; width: 100%; padding: 25px;
+            border-radius: 25px 25px 0 0; transform: translateY(100%); transition: transform 0.3s;
+            z-index: 501; box-sizing: border-box;
+            background: rgba(255,255,255,0.25); backdrop-filter: blur(30px);
+        }
+        .action-sheet.show { transform: translateY(0); }
+
+        /* Cropper - Selection Box Style */
         .cropper-modal {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; z-index: 600;
+            background: #222; z-index: 600;
+            display: flex; flex-direction: column;
         }
-        .cropper-container {
-            width: 100%; height: 100%; overflow: hidden; position: relative; touch-action: none;
+        .cropper-area {
+            flex: 1; position: relative; overflow: hidden;
+            display: flex; align-items: center; justify-content: center;
+            touch-action: none;
         }
+        /* 图片本身 */
+        .crop-target-img {
+            max-width: 95%; max-height: 95%;
+            display: block;
+            pointer-events: none; /* 图片不响应，只响应 box */
+        }
+        /* 选取框 */
+        .crop-box {
+            position: absolute;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5); /* 遮罩效果 */
+            touch-action: none;
+            box-sizing: border-box;
+        }
+        /* 选取框四角装饰 */
+        .crop-corner {
+            position: absolute; width: 10px; height: 10px;
+            border: 2px solid white;
+        }
+        .tl { top: -2px; left: -2px; border-right: none; border-bottom: none; }
+        .tr { top: -2px; right: -2px; border-left: none; border-bottom: none; }
+        .bl { bottom: -2px; left: -2px; border-right: none; border-top: none; }
+        .br { bottom: -2px; right: -2px; border-left: none; border-top: none; }
 
         .btn {
             padding: 10px 0; width: 100%; border-radius: 12px; border: none;
@@ -180,14 +218,6 @@
             background: rgba(255,255,255,0.9); color: #333;
         }
         .btn-danger { background: rgba(255, 60, 60, 0.85); color: white; }
-
-        .action-sheet {
-            position: fixed; bottom: 0; left: 0; width: 100%; padding: 25px;
-            border-radius: 25px 25px 0 0; transform: translateY(100%); transition: transform 0.3s;
-            z-index: 500; box-sizing: border-box;
-            background: rgba(255,255,255,0.2); backdrop-filter: blur(30px);
-        }
-        .action-sheet.show { transform: translateY(0); }
 
         .detail-header { text-align: center; margin-bottom: 30px; margin-top: 20px; }
         .info-block {
@@ -206,8 +236,8 @@
     <!-- 主界面 -->
     <div class="main-content" 
          :class="{shifted: showSettings}"
-         @touchstart="handleMainSwipeStart"
-         @touchend="handleMainSwipeEnd">
+         @touchstart="handleTouchStart"
+         @touchend="handleMainTouchEnd">
         
         <div class="header">
             <h1>小说</h1>
@@ -259,12 +289,11 @@
             <i class="ri-add-line"></i>
         </div>
     </div>
-    
     <input type="file" id="fileInput" accept="image/*" @change="handleAiUpload">
 
     <!-- 设置面板 -->
     <div class="settings-panel" :class="{open: showSettings}"
-         @touchstart="handleSettingsSwipeStart" @touchend="handleSettingsSwipeEnd">
+         @touchstart="handleTouchStart" @touchend="handleSettingsTouchEnd">
         <div class="header" style="padding:20px;"><h2>设置</h2></div>
         <div class="full-view-content">
             <input type="text" v-model="searchQuery" class="input-glass" 
@@ -295,9 +324,9 @@
         </div>
     </div>
 
-    <!-- 筛选/搜索结果列表 (支持右滑返回) -->
+    <!-- 筛选/搜索结果列表 -->
     <div class="full-view" :class="{show: showFilteredView}"
-         @touchstart="handleFilteredSwipeStart" @touchend="handleFilteredSwipeEnd">
+         @touchstart="handleTouchStart" @touchend="handleGenericSwipeBack($event, closeFilteredView)">
         <div class="header" style="padding:20px;">
             <i class="ri-arrow-left-line" style="font-size:24px;" @click="closeFilteredView"></i>
             <span>{{ filterTitle }}</span>
@@ -314,8 +343,9 @@
         </div>
     </div>
 
-    <!-- 小说详情页 -->
-    <div class="full-view" :class="{show: showDetail}" v-if="activeNovel">
+    <!-- 小说详情页 (支持右滑返回) -->
+    <div class="full-view" :class="{show: showDetail}" v-if="activeNovel"
+         @touchstart="handleTouchStart" @touchend="handleGenericSwipeBack($event, closeDetail)">
         <div class="header" style="padding:20px;">
             <i class="ri-arrow-left-line" style="font-size:24px;" @click="closeDetail"></i>
             <span>详情</span>
@@ -360,7 +390,8 @@
         </div>
     </div>
 
-    <!-- Action Sheet -->
+    <!-- 操作菜单 + 遮罩 -->
+    <div class="action-mask" :class="{show: showActionSheet}" @click="closeActionSheet"></div>
     <div class="action-sheet" :class="{show: showActionSheet}">
         <div style="text-align: center; margin-bottom: 20px; font-size: 14px; opacity: 0.6;">
             {{ selectedItem?.title || selectedItem?.name }}
@@ -371,23 +402,28 @@
         <button class="btn" style="background:transparent; color:white; opacity:0.6;" @click="closeActionSheet">取消</button>
     </div>
 
-    <!-- Cropper Modal (修复版) -->
+    <!-- 裁剪 (选取框模式) -->
     <div class="cropper-modal" v-if="showCropper">
-        <div class="cropper-container"
+        <div class="cropper-area" ref="cropArea"
              @touchstart="cropTouchStart" @touchmove="cropTouchMove">
-            <img :src="tempBgSrc" :style="cropStyle" style="position:absolute; transform-origin:center; max-width: none;" id="sourceImage">
-            <div style="position:absolute; border:2px solid white; top:0; left:0; width:100%; height:100%; pointer-events:none; box-sizing:border-box;"></div>
+            <img :src="tempBgSrc" class="crop-target-img" ref="cropImg" @load="initCropBox">
+            
+            <!-- 选取框 -->
+            <div class="crop-box" v-if="cropBox.w" :style="cropBoxStyle">
+                <div class="crop-corner tl"></div><div class="crop-corner tr"></div>
+                <div class="crop-corner bl"></div><div class="crop-corner br"></div>
+            </div>
+            
             <div style="position: absolute; top: 20px; width: 100%; text-align: center; color: white; text-shadow: 0 1px 2px black;">
-                拖动并缩放，填满屏幕
+                拖动框以移动，双指缩放框
             </div>
         </div>
-        <div style="position:absolute; bottom:20px; width:100%; display:flex; justify-content:space-around; z-index:610;">
-            <button class="btn btn-danger" style="width:100px;" @click="showCropper=false">取消</button>
-            <button class="btn" style="width:100px;" @click="confirmCrop">应用</button>
+        <div style="padding: 20px; display:flex; gap:20px; background: #000;">
+            <button class="btn btn-danger" @click="showCropper=false">取消</button>
+            <button class="btn" @click="confirmCrop">应用</button>
         </div>
     </div>
 
-    <!-- Hidden Inputs -->
     <input type="file" id="bgInput" accept="image/*" @change="handleBgSelect">
     <input type="file" id="importInput" accept=".json" @change="handleImportData">
 
@@ -397,18 +433,16 @@
 </div>
 
 <script>
-const { createApp, ref, computed, onMounted, watch, reactive } = Vue;
+const { createApp, ref, computed, onMounted, watch, reactive, nextTick } = Vue;
 
 createApp({
     setup() {
-        // Data
         const novels = ref([]);
         const folders = ref([]);
         const apiKey = ref('');
         const bgColor = ref('#8EC5FC');
         const bgImage = ref('');
         
-        // UI State
         const showSettings = ref(false);
         const showDetail = ref(false);
         const showFilteredView = ref(false);
@@ -418,7 +452,6 @@ createApp({
         const showCropper = ref(false);
         const isLoading = ref(false);
         
-        // Active Selection
         const currentFolder = ref(null);
         const activeNovel = ref(null);
         const filteredList = ref([]);
@@ -428,11 +461,13 @@ createApp({
         const selectedType = ref('');
         const editForm = reactive({ title: '', author: '', platform: '' });
         
-        // Cropper
+        // Cropper logic vars
         const tempBgSrc = ref('');
-        const cropState = reactive({ x:0, y:0, scale:1 });
-        let lastTouchDist = 0;
-        let touchStartX = 0; // 通用触摸记录
+        const cropImg = ref(null);
+        const cropArea = ref(null);
+        const cropBox = reactive({ x: 0, y: 0, w: 0, h: 0 }); // Relative to image parent container, but we need mapping
+        let lastDist = 0;
+        let touchStartX = 0;
 
         onMounted(() => {
             const n = localStorage.getItem('rf_novels_v3');
@@ -486,36 +521,29 @@ createApp({
         });
 
         const openFilteredView = (title, list) => {
-            filterTitle.value = title;
-            filteredList.value = list;
-            showFilteredView.value = true;
-            showSettings.value = false;
+            filterTitle.value = title; filteredList.value = list;
+            showFilteredView.value = true; showSettings.value = false;
         };
         const performSearch = () => {
             if(!searchQuery.value.trim()) return;
             const q = searchQuery.value.toLowerCase();
-            const res = novels.value.filter(n => 
-                n.title.toLowerCase().includes(q) || n.author.toLowerCase().includes(q) || (n.platform && n.platform.toLowerCase().includes(q))
-            );
-            openFilteredView(`搜索: ${searchQuery.value}`, res);
-            searchQuery.value = '';
+            const res = novels.value.filter(n => n.title.toLowerCase().includes(q) || n.author.toLowerCase().includes(q) || (n.platform && n.platform.toLowerCase().includes(q)));
+            openFilteredView(`搜索: ${searchQuery.value}`, res); searchQuery.value = '';
         };
         const closeFilteredView = () => showFilteredView.value = false;
 
         const openDetail = (n) => {
             if(!n.readDate && n.createTime) n.readDate = n.createTime.split('T')[0];
-            activeNovel.value = n;
-            showDetail.value = true;
+            activeNovel.value = n; showDetail.value = true;
         };
         const closeDetail = () => { showDetail.value = false; activeNovel.value = null; };
         const formatDate = (iso) => iso ? iso.split('T')[0] : '';
 
         const openManualAdd = () => {
             const t = prompt("书名"); if(!t) return;
-            const a = prompt("作者");
-            const p = prompt("平台");
-            addNovel({ title: t, author: a||'佚名', platform: p||'' });
-            showFabMenu.value = false;
+            const a = prompt("作者") || '佚名';
+            const p = prompt("平台") || '';
+            addNovel({ title: t, author: a, platform: p }); showFabMenu.value = false;
         };
         const createNewFolder = () => {
             const name = prompt("文件夹名称");
@@ -523,12 +551,7 @@ createApp({
             showFabMenu.value = false;
         };
         const addNovel = (data) => {
-            novels.value.unshift({
-                id: Date.now(),
-                ...data,
-                folderId: currentFolder.value ? currentFolder.value.id : null,
-                createTime: new Date().toISOString()
-            });
+            novels.value.unshift({ id: Date.now(), ...data, folderId: currentFolder.value ? currentFolder.value.id : null, createTime: new Date().toISOString() });
         };
 
         const handleAiUpload = async(e) => {
@@ -540,130 +563,199 @@ createApp({
             reader.onload = async() => {
                 try {
                     const res = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
-                        method: 'POST',
-                        headers: {'Content-Type':'application/json','Authorization':`Bearer ${apiKey.value}`},
+                        method: 'POST', headers: {'Content-Type':'application/json','Authorization':`Bearer ${apiKey.value}`},
                         body: JSON.stringify({ model: "glm-4v", messages: [{role:"user", content:[{type:"text", text:"提取: title, author, platform. JSON format only."}, {type:"image_url", image_url:{url:reader.result.split(',')[1]}}]}]})
                     });
                     const d = await res.json();
-                    let txt = d.choices[0].message.content.replace(/```json|```/g,'').trim();
-                    addNovel(JSON.parse(txt));
+                    addNovel(JSON.parse(d.choices[0].message.content.replace(/```json|```/g,'').trim()));
                 } catch(err) { alert("识别失败"); }
                 isLoading.value = false; e.target.value = '';
             };
         };
 
-        // Edit
         const openEditModal = () => {
-            editForm.title = selectedItem.value.title;
-            editForm.author = selectedItem.value.author;
-            editForm.platform = selectedItem.value.platform;
-            showActionSheet.value = false;
-            showEditModal.value = true;
+            editForm.title = selectedItem.value.title; editForm.author = selectedItem.value.author; editForm.platform = selectedItem.value.platform;
+            showActionSheet.value = false; showEditModal.value = true;
         };
         const closeEditModal = () => showEditModal.value = false;
         const saveEdit = () => {
-            selectedItem.value.title = editForm.title;
-            selectedItem.value.author = editForm.author;
-            selectedItem.value.platform = editForm.platform;
+            selectedItem.value.title = editForm.title; selectedItem.value.author = editForm.author; selectedItem.value.platform = editForm.platform;
             closeEditModal();
         };
         const renameFolder = () => {
-            const n = prompt("重命名", selectedItem.value.name);
-            if(n) selectedItem.value.name = n;
-            showActionSheet.value = false;
+            const n = prompt("重命名", selectedItem.value.name); if(n) selectedItem.value.name = n; showActionSheet.value = false;
         };
         const deleteItem = () => {
             if(!confirm("确定删除？")) return;
             const id = selectedItem.value.id;
             if(selectedType.value === 'novel') novels.value = novels.value.filter(n => n.id !== id);
             else {
-                const deleteRec = (fid) => {
+                const delRec = (fid) => {
                     novels.value = novels.value.filter(n => n.folderId !== fid);
-                    folders.value.filter(f => f.parentId === fid).forEach(c => deleteRec(c.id));
+                    folders.value.filter(f => f.parentId === fid).forEach(c => delRec(c.id));
                     folders.value = folders.value.filter(f => f.id !== fid);
                 };
-                deleteRec(id);
+                delRec(id);
             }
             showActionSheet.value = false;
         };
 
-        // 触摸手势处理 (分别处理)
-        const handleMainSwipeStart = (e) => touchStartX = e.changedTouches[0].screenX;
-        const handleMainSwipeEnd = (e) => {
+        // Swipe & Touch
+        const handleTouchStart = (e) => touchStartX = e.changedTouches[0].screenX;
+        const handleMainTouchEnd = (e) => {
             const diff = e.changedTouches[0].screenX - touchStartX;
             if(diff > 80 && currentFolder.value) goBackFolder();
             else if (diff < -80) showSettings.value = true;
         };
-
-        const handleSettingsSwipeStart = (e) => touchStartX = e.changedTouches[0].screenX;
-        const handleSettingsSwipeEnd = (e) => {
-            if(e.changedTouches[0].screenX - touchStartX > 80) showSettings.value = false;
-        };
-
-        const handleFilteredSwipeStart = (e) => touchStartX = e.changedTouches[0].screenX;
-        const handleFilteredSwipeEnd = (e) => {
-            if(e.changedTouches[0].screenX - touchStartX > 80) showFilteredView.value = false;
+        const handleSettingsTouchEnd = (e) => { if(e.changedTouches[0].screenX - touchStartX > 80) showSettings.value = false; };
+        // 通用右滑返回处理器
+        const handleGenericSwipeBack = (e, callback) => {
+            if(e.changedTouches[0].screenX - touchStartX > 80) callback();
         };
 
         let lpTimer;
         const startLongPress = (item, type) => {
             lpTimer = setTimeout(() => {
-                selectedItem.value = item; selectedType.value = type;
-                showActionSheet.value = true;
+                selectedItem.value = item; selectedType.value = type; showActionSheet.value = true;
                 if(navigator.vibrate) navigator.vibrate(50);
             }, 600);
         };
         const cancelLongPress = () => clearTimeout(lpTimer);
         const closeActionSheet = () => showActionSheet.value = false;
 
-        // --- Cropper (Fixed Logic) ---
+        // --- New Cropper Logic (Selection Box) ---
         const triggerBgUpload = () => document.getElementById('bgInput').click();
         const handleBgSelect = (e) => {
             const f = e.target.files[0]; if(!f) return;
             const r = new FileReader();
-            r.onload = (ev) => { 
-                tempBgSrc.value = ev.target.result; 
-                showCropper.value = true; 
-                cropState.x=0; cropState.y=0; cropState.scale=1;
-            };
+            r.onload = (ev) => { tempBgSrc.value = ev.target.result; showCropper.value = true; };
             r.readAsDataURL(f); e.target.value = '';
         };
+
+        const initCropBox = () => {
+            // 初始化选取框，使其保持屏幕比例，并居中
+            const img = cropImg.value;
+            if(!img) return;
+            const imgRect = img.getBoundingClientRect();
+            const areaRect = cropArea.value.getBoundingClientRect();
+            
+            // 图片相对于 area 的偏移
+            const offsetX = imgRect.left - areaRect.left;
+            const offsetY = imgRect.top - areaRect.top;
+            
+            // 目标比例 (屏幕比例)
+            const screenRatio = window.innerWidth / window.innerHeight;
+            
+            // 计算初始框大小 (尽量填满图片)
+            let w = imgRect.width * 0.8;
+            let h = w / screenRatio;
+            
+            if (h > imgRect.height * 0.8) {
+                h = imgRect.height * 0.8;
+                w = h * screenRatio;
+            }
+
+            cropBox.w = w;
+            cropBox.h = h;
+            cropBox.x = offsetX + (imgRect.width - w) / 2;
+            cropBox.y = offsetY + (imgRect.height - h) / 2;
+        };
+
+        const cropBoxStyle = computed(() => ({
+            left: cropBox.x + 'px',
+            top: cropBox.y + 'px',
+            width: cropBox.w + 'px',
+            height: cropBox.h + 'px'
+        }));
+
+        const cropTouchStart = (e) => {
+            if(e.touches.length === 2) lastDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+        };
+
         const cropTouchMove = (e) => {
-            e.preventDefault(); // 防止页面滚动
+            e.preventDefault();
+            const imgRect = cropImg.value.getBoundingClientRect();
+            const areaRect = cropArea.value.getBoundingClientRect();
+            // 图片边界相对于 area
+            const minX = imgRect.left - areaRect.left;
+            const maxX = minX + imgRect.width;
+            const minY = imgRect.top - areaRect.top;
+            const maxY = minY + imgRect.height;
+
             if(e.touches.length === 1) {
-                cropState.x += e.changedTouches[0].movementX;
-                cropState.y += e.changedTouches[0].movementY;
-            } else if(e.touches.length === 2) {
-                const d = Math.hypot(e.touches[0].pageX-e.touches[1].pageX, e.touches[0].pageY-e.touches[1].pageY);
-                if(lastTouchDist) cropState.scale += (d - lastTouchDist)*0.005;
-                lastTouchDist = d;
+                // 拖动 (移动框)
+                let nx = cropBox.x + e.changedTouches[0].movementX;
+                let ny = cropBox.y + e.changedTouches[0].movementY;
+                
+                // 边界限制
+                if(nx < minX) nx = minX;
+                if(ny < minY) ny = minY;
+                if(nx + cropBox.w > maxX) nx = maxX - cropBox.w;
+                if(ny + cropBox.h > maxY) ny = maxY - cropBox.h;
+
+                cropBox.x = nx;
+                cropBox.y = ny;
+            } else if (e.touches.length === 2) {
+                // 缩放 (改变框大小)
+                const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+                const delta = dist - lastDist;
+                
+                const ratio = window.innerWidth / window.innerHeight;
+                let nw = cropBox.w + delta;
+                let nh = nw / ratio;
+
+                // 简单的中心缩放逻辑
+                // 检查大小限制 (最小 50px)
+                if(nw > 50 && nw < imgRect.width && nh < imgRect.height) {
+                    // 重新计算 x, y 以保持中心不动
+                    const dx = (nw - cropBox.w) / 2;
+                    const dy = (nh - cropBox.h) / 2;
+                    
+                    let nx = cropBox.x - dx;
+                    let ny = cropBox.y - dy;
+
+                    // 检查边界，如果出界则不缩放或平移回界内 (这里简单处理：出界就不缩放)
+                    if(nx >= minX && ny >= minY && nx+nw <= maxX && ny+nh <= maxY) {
+                        cropBox.w = nw;
+                        cropBox.h = nh;
+                        cropBox.x = nx;
+                        cropBox.y = ny;
+                    }
+                }
+                lastDist = dist;
             }
         };
-        const cropTouchStart = (e) => { if(e.touches.length===2) lastTouchDist = Math.hypot(e.touches[0].pageX-e.touches[1].pageX, e.touches[0].pageY-e.touches[1].pageY); };
-        
+
         const confirmCrop = () => {
-            // 修正裁剪：将屏幕所见部分绘制到 Canvas
             const cvs = document.createElement('canvas');
             const ctx = cvs.getContext('2d');
-            const w = window.innerWidth;
-            const h = window.innerHeight;
             
-            // 使用设备像素比保证清晰度，这里为了存储大小折中，使用 1x 或 1.5x
-            cvs.width = w; cvs.height = h;
+            // 最终图片大小 = 屏幕大小
+            cvs.width = window.innerWidth;
+            cvs.height = window.innerHeight;
+
+            const img = cropImg.value;
+            const imgRect = img.getBoundingClientRect();
+            const areaRect = cropArea.value.getBoundingClientRect();
+
+            // 计算 Box 相对于 Image 的位置和比例
+            // box.x 是相对于 area 的，imgRect.left 也是相对于 area 的 (如果我们用 getBoundingClientRect - area)
+            // 准确计算：
+            // Box 相对 Image 左上角的坐标:
+            const boxRelX = cropBox.x - (imgRect.left - areaRect.left);
+            const boxRelY = cropBox.y - (imgRect.top - areaRect.top);
             
-            const img = document.getElementById('sourceImage');
-            
-            // 核心逻辑：模拟 CSS transform
-            // 1. 移动到画布中心
-            ctx.translate(w/2, h/2);
-            // 2. 应用用户的位移和缩放
-            ctx.translate(cropState.x, cropState.y);
-            ctx.scale(cropState.scale, cropState.scale);
-            // 3. 绘制图片（图片中心对齐坐标原点）
-            ctx.drawImage(img, -img.naturalWidth/2, -img.naturalHeight/2);
-            
-            // 导出
-            bgImage.value = cvs.toDataURL('image/jpeg', 0.7);
+            // 比例因子：Natural / Rendered
+            const scaleX = img.naturalWidth / imgRect.width;
+            const scaleY = img.naturalHeight / imgRect.height;
+
+            const sourceX = boxRelX * scaleX;
+            const sourceY = boxRelY * scaleY;
+            const sourceW = cropBox.w * scaleX;
+            const sourceH = cropBox.h * scaleY;
+
+            ctx.drawImage(img, sourceX, sourceY, sourceW, sourceH, 0, 0, cvs.width, cvs.height);
+            bgImage.value = cvs.toDataURL('image/jpeg', 0.8);
             showCropper.value = false;
         };
 
@@ -689,11 +781,12 @@ createApp({
             novels, folders, apiKey, bgColor, bgImage, searchQuery,
             showSettings, showDetail, showFilteredView, showFabMenu, showActionSheet, showEditModal, showCropper, isLoading,
             currentFolder, currentItems, currentFoldersList, currentNovelsList, activeNovel, filteredList, filterTitle, novelsByPlatform,
-            selectedItem, selectedType, editForm, tempBgSrc, cropState, cropStyle: computed(()=>`transform:translate(${cropState.x}px,${cropState.y}px) scale(${cropState.scale})`),
+            selectedItem, selectedType, editForm, tempBgSrc, cropImg, cropArea, cropBox, cropBoxStyle,
             openDetail, closeDetail, formatDate, enterFolder, openFilteredView, closeFilteredView, performSearch,
             openManualAdd, createNewFolder, handleAiUpload, openEditModal, closeEditModal, saveEdit, renameFolder, deleteItem,
-            handleMainSwipeStart, handleMainSwipeEnd, handleSettingsSwipeStart, handleSettingsSwipeEnd, handleFilteredSwipeStart, handleFilteredSwipeEnd,
-            startLongPress, cancelLongPress, closeActionSheet, triggerBgUpload, handleBgSelect, cropTouchStart, cropTouchMove, confirmCrop, 
+            handleTouchStart, handleMainTouchEnd, handleSettingsTouchEnd, handleGenericSwipeBack,
+            startLongPress, cancelLongPress, closeActionSheet, triggerBgUpload, handleBgSelect, 
+            initCropBox, cropTouchStart, cropTouchMove, confirmCrop,
             exportData, triggerImport, handleImportData, clearData
         };
     }

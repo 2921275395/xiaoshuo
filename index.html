@@ -8,7 +8,7 @@
     <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     <style>
         :root {
-            --glass-bg: rgba(255, 255, 255, 0.12); /* 更通透 */
+            --glass-bg: rgba(255, 255, 255, 0.12);
             --glass-strong: rgba(255, 255, 255, 0.25);
             --text-color: #fff;
             --text-shadow: 0 1px 2px rgba(0,0,0,0.2);
@@ -34,16 +34,14 @@
             background: rgba(0, 0, 0, 0.15); z-index: -1; pointer-events: none;
         }
 
-        /* 统一雾化玻璃 (无边框) */
         .glass {
             background: var(--glass-bg);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            border: none; /* 去除边框 */
+            border: none;
         }
 
-        /* 布局容器 */
         #app { min-height: 100vh; width: 100%; overflow-x: hidden; position: relative; }
         
         .main-content {
@@ -60,7 +58,6 @@
         }
         .header h1 { font-size: 26px; font-weight: 800; text-shadow: var(--text-shadow); margin: 0; }
 
-        /* 卡片样式 */
         .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
         .card {
             border-radius: var(--card-radius);
@@ -87,7 +84,7 @@
         }
         .mini-doc { background: rgba(255,255,255,0.5); border-radius: 3px; }
 
-        /* FAB 环绕布局 */
+        /* FAB */
         .fab-container {
             position: fixed; bottom: 20px; right: 20px; z-index: 100;
             width: 50px; height: 50px;
@@ -114,15 +111,14 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             font-size: 18px;
         }
-        /* 环绕展开位置 */
-        .fab-container.open .fab-item:nth-child(1) { transform: translateY(-60px); opacity: 1; pointer-events: auto; } /* 上 */
-        .fab-container.open .fab-item:nth-child(2) { transform: translate(-45px, -45px); opacity: 1; pointer-events: auto; } /* 左上 */
-        .fab-container.open .fab-item:nth-child(3) { transform: translateX(-60px); opacity: 1; pointer-events: auto; } /* 左 */
+        .fab-container.open .fab-item:nth-child(1) { transform: translateY(-60px); opacity: 1; pointer-events: auto; }
+        .fab-container.open .fab-item:nth-child(2) { transform: translate(-45px, -45px); opacity: 1; pointer-events: auto; }
+        .fab-container.open .fab-item:nth-child(3) { transform: translateX(-60px); opacity: 1; pointer-events: auto; }
 
-        /* 通用全屏/半屏视图 (Detail, FilteredList) */
+        /* 全屏视图 (Detail, FilteredList) */
         .full-view {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(200, 220, 255, 0.15); /* 极淡的底色配合模糊 */
+            background: rgba(200, 220, 255, 0.15);
             backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
             z-index: 300;
             display: flex; flex-direction: column;
@@ -132,7 +128,6 @@
         .full-view.show { transform: translateX(0); }
         .full-view-content { padding: 20px; overflow-y: auto; flex: 1; }
 
-        /* 设置面板 */
         .settings-panel {
             position: fixed; top: 0; right: 0; bottom: 0; width: 100%;
             background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(30px);
@@ -141,7 +136,6 @@
         }
         .settings-panel.open { transform: translateX(0); }
 
-        /* 输入框通用 */
         .input-glass {
             width: 100%; padding: 12px;
             background: rgba(0,0,0,0.15); border: none; border-radius: 12px;
@@ -157,7 +151,7 @@
         }
         .stat-row:active { background: rgba(255,255,255,0.2); }
 
-        /* 编辑弹窗 Modal */
+        /* Modal */
         .modal-mask {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             z-index: 500; display: flex; align-items: center; justify-content: center;
@@ -171,10 +165,13 @@
         }
         .modal-mask.show .modal-card { transform: scale(1); }
 
-        /* 裁剪 */
+        /* Cropper */
         .cropper-modal {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #000; z-index: 600;
+        }
+        .cropper-container {
+            width: 100%; height: 100%; overflow: hidden; position: relative; touch-action: none;
         }
 
         .btn {
@@ -184,7 +181,6 @@
         }
         .btn-danger { background: rgba(255, 60, 60, 0.85); color: white; }
 
-        /* 操作菜单 */
         .action-sheet {
             position: fixed; bottom: 0; left: 0; width: 100%; padding: 25px;
             border-radius: 25px 25px 0 0; transform: translateY(100%); transition: transform 0.3s;
@@ -193,7 +189,6 @@
         }
         .action-sheet.show { transform: translateY(0); }
 
-        /* 详情页组件 */
         .detail-header { text-align: center; margin-bottom: 30px; margin-top: 20px; }
         .info-block {
             background: rgba(255,255,255,0.1); border-radius: 16px;
@@ -211,29 +206,23 @@
     <!-- 主界面 -->
     <div class="main-content" 
          :class="{shifted: showSettings}"
-         @touchstart="handleSwipeStart"
-         @touchend="handleSwipeEnd">
+         @touchstart="handleMainSwipeStart"
+         @touchend="handleMainSwipeEnd">
         
         <div class="header">
-            <!-- 左上角标题 -->
             <h1>小说</h1>
-            
-            <!-- 文件夹导航栏 -->
             <div v-if="currentFolder" style="display:flex; align-items:center; opacity:0.8;">
                 <i class="ri-folder-open-line" style="margin-right: 5px;"></i>
                 <span style="font-size:14px; font-weight:bold;">{{ currentFolder.name }}</span>
             </div>
         </div>
 
-        <!-- 空状态 -->
         <div v-if="currentItems.length === 0" style="text-align: center; margin-top: 150px; opacity: 0.5;">
             <i class="ri-book-mark-line" style="font-size: 50px;"></i>
             <p style="font-size:14px;">空空如也</p>
         </div>
 
-        <!-- 网格列表 -->
         <div class="grid">
-            <!-- 渲染当前层级的文件夹 -->
             <div v-for="folder in currentFoldersList" :key="'f-'+folder.id" 
                  class="card glass"
                  @click="enterFolder(folder)"
@@ -247,7 +236,6 @@
                 <div class="card-title">{{ folder.name }}</div>
             </div>
 
-            <!-- 渲染当前层级的小说 -->
             <div v-for="novel in currentNovelsList" :key="'n-'+novel.id" 
                  class="card glass"
                  @click="openDetail(novel)"
@@ -262,16 +250,11 @@
         </div>
     </div>
 
-    <!-- 扇形 FAB -->
+    <!-- FAB -->
     <div class="fab-container" :class="{open: showFabMenu}">
-        <!-- 上：手动 -->
         <div class="fab-item" @click="openManualAdd"><i class="ri-edit-line"></i></div>
-        <!-- 左上：文件夹 -->
         <div class="fab-item" @click="createNewFolder"><i class="ri-folder-add-line"></i></div>
-        <!-- 左：AI -->
         <label class="fab-item" for="fileInput"><i class="ri-image-line"></i></label>
-        
-        <!-- 主按钮 -->
         <div class="fab-main" :class="{active: showFabMenu}" @click="showFabMenu = !showFabMenu">
             <i class="ri-add-line"></i>
         </div>
@@ -281,17 +264,13 @@
 
     <!-- 设置面板 -->
     <div class="settings-panel" :class="{open: showSettings}"
-         @touchstart="handleSwipeStart" @touchend="handleSettingsSwipe">
-        <div class="header" style="padding:20px;">
-            <h2>设置</h2>
-        </div>
+         @touchstart="handleSettingsSwipeStart" @touchend="handleSettingsSwipeEnd">
+        <div class="header" style="padding:20px;"><h2>设置</h2></div>
         <div class="full-view-content">
-            <!-- 搜索框 -->
             <input type="text" v-model="searchQuery" class="input-glass" 
                    placeholder="搜索..." @keyup.enter="performSearch">
             <button v-if="searchQuery" class="btn" style="margin-top:0; margin-bottom:20px;" @click="performSearch">搜索</button>
 
-            <!-- 藏书总览 -->
             <h3 style="font-size:14px; opacity:0.7; margin-top:20px;">藏书总览</h3>
             <div v-if="Object.keys(novelsByPlatform).length === 0" style="opacity:0.5; font-size:12px;">暂无数据</div>
             <div v-for="(list, platform) in novelsByPlatform" :key="platform" 
@@ -300,7 +279,6 @@
                 <span style="opacity:0.7">{{ list.length }} <i class="ri-arrow-right-s-line"></i></span>
             </div>
 
-            <!-- 数据管理 -->
             <h3 style="font-size:14px; opacity:0.7; margin-top:30px;">数据 & 外观</h3>
             <div style="display:flex; gap:10px;">
                 <button class="btn" @click="exportData">备份</button>
@@ -317,8 +295,9 @@
         </div>
     </div>
 
-    <!-- 筛选/搜索结果列表 (复用全屏视图) -->
-    <div class="full-view" :class="{show: showFilteredView}">
+    <!-- 筛选/搜索结果列表 (支持右滑返回) -->
+    <div class="full-view" :class="{show: showFilteredView}"
+         @touchstart="handleFilteredSwipeStart" @touchend="handleFilteredSwipeEnd">
         <div class="header" style="padding:20px;">
             <i class="ri-arrow-left-line" style="font-size:24px;" @click="closeFilteredView"></i>
             <span>{{ filterTitle }}</span>
@@ -335,7 +314,7 @@
         </div>
     </div>
 
-    <!-- 小说详情页 (全屏毛玻璃) -->
+    <!-- 小说详情页 -->
     <div class="full-view" :class="{show: showDetail}" v-if="activeNovel">
         <div class="header" style="padding:20px;">
             <i class="ri-arrow-left-line" style="font-size:24px;" @click="closeDetail"></i>
@@ -370,7 +349,7 @@
         </div>
     </div>
 
-    <!-- 编辑弹窗 (点击遮罩关闭) -->
+    <!-- 编辑弹窗 -->
     <div class="modal-mask" :class="{show: showEditModal}" @click.self="closeEditModal">
         <div class="modal-card">
             <h3 style="margin-top:0; text-align:center;">编辑信息</h3>
@@ -381,38 +360,40 @@
         </div>
     </div>
 
-    <!-- 底部操作菜单 (Action Sheet) -->
+    <!-- Action Sheet -->
     <div class="action-sheet" :class="{show: showActionSheet}">
         <div style="text-align: center; margin-bottom: 20px; font-size: 14px; opacity: 0.6;">
             {{ selectedItem?.title || selectedItem?.name }}
         </div>
-        
         <button v-if="selectedType === 'novel'" class="btn" @click="openEditModal">编辑信息</button>
         <button v-if="selectedType === 'folder'" class="btn" @click="renameFolder">重命名</button>
         <button class="btn btn-danger" @click="deleteItem">删除</button>
         <button class="btn" style="background:transparent; color:white; opacity:0.6;" @click="closeActionSheet">取消</button>
     </div>
 
-    <!-- 裁剪与辅助 -->
-    <input type="file" id="bgInput" accept="image/*" @change="handleBgSelect">
-    <input type="file" id="importInput" accept=".json" @change="handleImportData">
-    
+    <!-- Cropper Modal (修复版) -->
     <div class="cropper-modal" v-if="showCropper">
-        <div style="position:relative; width:100%; height:100%; overflow:hidden;"
+        <div class="cropper-container"
              @touchstart="cropTouchStart" @touchmove="cropTouchMove">
-            <img :src="tempBgSrc" :style="cropStyle" style="position:absolute; transform-origin:center;" id="sourceImage">
-            <div style="position:absolute; border:2px solid white; top:0; left:0; width:100%; height:100%; pointer-events:none;"></div>
+            <img :src="tempBgSrc" :style="cropStyle" style="position:absolute; transform-origin:center; max-width: none;" id="sourceImage">
+            <div style="position:absolute; border:2px solid white; top:0; left:0; width:100%; height:100%; pointer-events:none; box-sizing:border-box;"></div>
+            <div style="position: absolute; top: 20px; width: 100%; text-align: center; color: white; text-shadow: 0 1px 2px black;">
+                拖动并缩放，填满屏幕
+            </div>
         </div>
-        <div style="position:absolute; bottom:20px; width:100%; display:flex; justify-content:space-around;">
+        <div style="position:absolute; bottom:20px; width:100%; display:flex; justify-content:space-around; z-index:610;">
             <button class="btn btn-danger" style="width:100px;" @click="showCropper=false">取消</button>
             <button class="btn" style="width:100px;" @click="confirmCrop">应用</button>
         </div>
     </div>
 
+    <!-- Hidden Inputs -->
+    <input type="file" id="bgInput" accept="image/*" @change="handleBgSelect">
+    <input type="file" id="importInput" accept=".json" @change="handleImportData">
+
     <div v-if="isLoading" style="position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.7); color:white; padding:20px; border-radius:15px; z-index:999;">
         <i class="ri-loader-4-line ri-spin"></i>
     </div>
-
 </div>
 
 <script>
@@ -420,14 +401,14 @@ const { createApp, ref, computed, onMounted, watch, reactive } = Vue;
 
 createApp({
     setup() {
-        // --- State ---
+        // Data
         const novels = ref([]);
         const folders = ref([]);
         const apiKey = ref('');
         const bgColor = ref('#8EC5FC');
         const bgImage = ref('');
         
-        // Navigation & Views
+        // UI State
         const showSettings = ref(false);
         const showDetail = ref(false);
         const showFilteredView = ref(false);
@@ -437,10 +418,10 @@ createApp({
         const showCropper = ref(false);
         const isLoading = ref(false);
         
-        // Active Data
-        const currentFolder = ref(null); // 如果为null则在根目录
+        // Active Selection
+        const currentFolder = ref(null);
         const activeNovel = ref(null);
-        const filteredList = ref([]); // 用于搜索或总览
+        const filteredList = ref([]);
         const filterTitle = ref('');
         const searchQuery = ref('');
         const selectedItem = ref(null);
@@ -451,9 +432,8 @@ createApp({
         const tempBgSrc = ref('');
         const cropState = reactive({ x:0, y:0, scale:1 });
         let lastTouchDist = 0;
-        let touchStartX = 0;
+        let touchStartX = 0; // 通用触摸记录
 
-        // --- Init ---
         onMounted(() => {
             const n = localStorage.getItem('rf_novels_v3');
             const f = localStorage.getItem('rf_folders_v3');
@@ -484,38 +464,17 @@ createApp({
             document.body.style.backgroundColor = bgImage.value ? 'transparent' : bgColor.value;
         };
 
-        // --- Core Logic for Nested Folders ---
-        // 文件夹现在需要一个 parentId, 根目录 parentId = null
-        // 兼容旧数据：如果文件夹没有 parentId，默认为 null
-        
-        const currentItems = computed(() => {
-            return [...currentFoldersList.value, ...currentNovelsList.value];
-        });
-
-        const currentFoldersList = computed(() => {
-            const pid = currentFolder.value ? currentFolder.value.id : null;
-            return folders.value.filter(f => (f.parentId || null) === pid);
-        });
-
-        const currentNovelsList = computed(() => {
-            const fid = currentFolder.value ? currentFolder.value.id : null;
-            return novels.value.filter(n => n.folderId === fid);
-        });
+        const currentItems = computed(() => [...currentFoldersList.value, ...currentNovelsList.value]);
+        const currentFoldersList = computed(() => folders.value.filter(f => (f.parentId || null) === (currentFolder.value ? currentFolder.value.id : null)));
+        const currentNovelsList = computed(() => novels.value.filter(n => n.folderId === (currentFolder.value ? currentFolder.value.id : null)));
 
         const enterFolder = (f) => currentFolder.value = f;
-        
-        // 返回上一级逻辑
         const goBackFolder = () => {
-            if(!currentFolder.value) return; // 已经是根目录
+            if(!currentFolder.value) return;
             const parentId = currentFolder.value.parentId;
-            if(parentId) {
-                currentFolder.value = folders.value.find(f => f.id === parentId);
-            } else {
-                currentFolder.value = null; // 回到根目录
-            }
+            currentFolder.value = parentId ? folders.value.find(f => f.id === parentId) : null;
         };
 
-        // --- Search & Overview ---
         const novelsByPlatform = computed(() => {
             const map = {};
             novels.value.forEach(n => {
@@ -530,23 +489,19 @@ createApp({
             filterTitle.value = title;
             filteredList.value = list;
             showFilteredView.value = true;
-            showSettings.value = false; // 关闭设置页
+            showSettings.value = false;
         };
-
         const performSearch = () => {
             if(!searchQuery.value.trim()) return;
             const q = searchQuery.value.toLowerCase();
             const res = novels.value.filter(n => 
-                n.title.toLowerCase().includes(q) || 
-                n.author.toLowerCase().includes(q) ||
-                (n.platform && n.platform.toLowerCase().includes(q))
+                n.title.toLowerCase().includes(q) || n.author.toLowerCase().includes(q) || (n.platform && n.platform.toLowerCase().includes(q))
             );
             openFilteredView(`搜索: ${searchQuery.value}`, res);
-            searchQuery.value = ''; // 清空搜索记录
+            searchQuery.value = '';
         };
         const closeFilteredView = () => showFilteredView.value = false;
 
-        // --- Detail ---
         const openDetail = (n) => {
             if(!n.readDate && n.createTime) n.readDate = n.createTime.split('T')[0];
             activeNovel.value = n;
@@ -555,10 +510,7 @@ createApp({
         const closeDetail = () => { showDetail.value = false; activeNovel.value = null; };
         const formatDate = (iso) => iso ? iso.split('T')[0] : '';
 
-        // --- Add Items ---
         const openManualAdd = () => {
-            // 简单起见，手动输入还是用 prompt 链，或者你可以复用 editModal 的 UI 改一下逻辑
-            // 这里为了快，用 prompt
             const t = prompt("书名"); if(!t) return;
             const a = prompt("作者");
             const p = prompt("平台");
@@ -567,13 +519,7 @@ createApp({
         };
         const createNewFolder = () => {
             const name = prompt("文件夹名称");
-            if(name) {
-                folders.value.push({
-                    id: Date.now(),
-                    name,
-                    parentId: currentFolder.value ? currentFolder.value.id : null
-                });
-            }
+            if(name) folders.value.push({ id: Date.now(), name, parentId: currentFolder.value ? currentFolder.value.id : null });
             showFabMenu.value = false;
         };
         const addNovel = (data) => {
@@ -585,7 +531,6 @@ createApp({
             });
         };
 
-        // --- AI ---
         const handleAiUpload = async(e) => {
             const f = e.target.files[0]; if(!f) return;
             if(!apiKey.value) { alert("请设置 API Key"); return; }
@@ -597,13 +542,7 @@ createApp({
                     const res = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
                         method: 'POST',
                         headers: {'Content-Type':'application/json','Authorization':`Bearer ${apiKey.value}`},
-                        body: JSON.stringify({
-                            model: "glm-4v",
-                            messages: [{role:"user", content:[
-                                {type:"text", text:"提取: title, author, platform. JSON format only."},
-                                {type:"image_url", image_url:{url:reader.result.split(',')[1]}}
-                            ]}]
-                        })
+                        body: JSON.stringify({ model: "glm-4v", messages: [{role:"user", content:[{type:"text", text:"提取: title, author, platform. JSON format only."}, {type:"image_url", image_url:{url:reader.result.split(',')[1]}}]}]})
                     });
                     const d = await res.json();
                     let txt = d.choices[0].message.content.replace(/```json|```/g,'').trim();
@@ -613,7 +552,7 @@ createApp({
             };
         };
 
-        // --- Edit Modal Logic ---
+        // Edit
         const openEditModal = () => {
             editForm.title = selectedItem.value.title;
             editForm.author = selectedItem.value.author;
@@ -634,31 +573,38 @@ createApp({
             showActionSheet.value = false;
         };
         const deleteItem = () => {
-            if(!confirm("确定删除？文件夹内的内容也会被删除。")) return;
+            if(!confirm("确定删除？")) return;
             const id = selectedItem.value.id;
-            if(selectedType.value === 'novel') {
-                novels.value = novels.value.filter(n => n.id !== id);
-            } else {
-                // 递归删除所有子文件夹和子文件 (简化版: 只要 parentId 链上有这个ID的都删掉)
-                // 简单实现：只删当前层级，把子级变成孤儿(或也删掉)。为了数据干净，建议删掉当前文件夹，
-                // 并把里面的小说移到根目录(防止误删)。
-                // 修正需求：用户说“删除”。
-                // 严谨逻辑：删除文件夹，以及所有 folderId = id 的小说，以及所有 parentId = id 的文件夹
-                const deleteFolderRecursive = (fid) => {
-                    // 删小说
+            if(selectedType.value === 'novel') novels.value = novels.value.filter(n => n.id !== id);
+            else {
+                const deleteRec = (fid) => {
                     novels.value = novels.value.filter(n => n.folderId !== fid);
-                    // 找子文件夹
-                    const children = folders.value.filter(f => f.parentId === fid);
-                    children.forEach(c => deleteFolderRecursive(c.id));
-                    // 删自己
+                    folders.value.filter(f => f.parentId === fid).forEach(c => deleteRec(c.id));
                     folders.value = folders.value.filter(f => f.id !== fid);
                 };
-                deleteFolderRecursive(id);
+                deleteRec(id);
             }
             showActionSheet.value = false;
         };
 
-        // --- Interactions (Swipe & LongPress) ---
+        // 触摸手势处理 (分别处理)
+        const handleMainSwipeStart = (e) => touchStartX = e.changedTouches[0].screenX;
+        const handleMainSwipeEnd = (e) => {
+            const diff = e.changedTouches[0].screenX - touchStartX;
+            if(diff > 80 && currentFolder.value) goBackFolder();
+            else if (diff < -80) showSettings.value = true;
+        };
+
+        const handleSettingsSwipeStart = (e) => touchStartX = e.changedTouches[0].screenX;
+        const handleSettingsSwipeEnd = (e) => {
+            if(e.changedTouches[0].screenX - touchStartX > 80) showSettings.value = false;
+        };
+
+        const handleFilteredSwipeStart = (e) => touchStartX = e.changedTouches[0].screenX;
+        const handleFilteredSwipeEnd = (e) => {
+            if(e.changedTouches[0].screenX - touchStartX > 80) showFilteredView.value = false;
+        };
+
         let lpTimer;
         const startLongPress = (item, type) => {
             lpTimer = setTimeout(() => {
@@ -670,39 +616,20 @@ createApp({
         const cancelLongPress = () => clearTimeout(lpTimer);
         const closeActionSheet = () => showActionSheet.value = false;
 
-        // 全局 Swipe 逻辑
-        const handleSwipeStart = (e) => touchStartX = e.changedTouches[0].screenX;
-        const handleSwipeEnd = (e) => {
-            const diff = e.changedTouches[0].screenX - touchStartX;
-            // 右滑 (Diff > 80)
-            if(diff > 80) {
-                // 如果在文件夹里，返回上一级
-                if(currentFolder.value) {
-                    goBackFolder();
-                }
-            } 
-            // 左滑 (Diff < -80)
-            else if (diff < -80) {
-                showSettings.value = true;
-            }
-        };
-
-        // 设置页右滑关闭
-        const handleSettingsSwipe = (e) => {
-            const diff = e.changedTouches[0].screenX - touchStartX;
-            if(diff > 80) showSettings.value = false;
-        };
-
-        // --- Cropper (Simplified) ---
+        // --- Cropper (Fixed Logic) ---
         const triggerBgUpload = () => document.getElementById('bgInput').click();
         const handleBgSelect = (e) => {
             const f = e.target.files[0]; if(!f) return;
             const r = new FileReader();
-            r.onload = (ev) => { tempBgSrc.value = ev.target.result; showCropper.value = true; };
+            r.onload = (ev) => { 
+                tempBgSrc.value = ev.target.result; 
+                showCropper.value = true; 
+                cropState.x=0; cropState.y=0; cropState.scale=1;
+            };
             r.readAsDataURL(f); e.target.value = '';
         };
         const cropTouchMove = (e) => {
-            e.preventDefault();
+            e.preventDefault(); // 防止页面滚动
             if(e.touches.length === 1) {
                 cropState.x += e.changedTouches[0].movementX;
                 cropState.y += e.changedTouches[0].movementY;
@@ -713,20 +640,33 @@ createApp({
             }
         };
         const cropTouchStart = (e) => { if(e.touches.length===2) lastTouchDist = Math.hypot(e.touches[0].pageX-e.touches[1].pageX, e.touches[0].pageY-e.touches[1].pageY); };
+        
         const confirmCrop = () => {
+            // 修正裁剪：将屏幕所见部分绘制到 Canvas
             const cvs = document.createElement('canvas');
             const ctx = cvs.getContext('2d');
-            cvs.width = window.innerWidth; cvs.height = window.innerHeight;
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            
+            // 使用设备像素比保证清晰度，这里为了存储大小折中，使用 1x 或 1.5x
+            cvs.width = w; cvs.height = h;
+            
             const img = document.getElementById('sourceImage');
-            ctx.translate(cvs.width/2, cvs.height/2);
+            
+            // 核心逻辑：模拟 CSS transform
+            // 1. 移动到画布中心
+            ctx.translate(w/2, h/2);
+            // 2. 应用用户的位移和缩放
             ctx.translate(cropState.x, cropState.y);
             ctx.scale(cropState.scale, cropState.scale);
+            // 3. 绘制图片（图片中心对齐坐标原点）
             ctx.drawImage(img, -img.naturalWidth/2, -img.naturalHeight/2);
-            bgImage.value = cvs.toDataURL('image/jpeg', 0.6);
+            
+            // 导出
+            bgImage.value = cvs.toDataURL('image/jpeg', 0.7);
             showCropper.value = false;
         };
 
-        // --- Import/Export ---
         const exportData = () => {
             const b = new Blob([JSON.stringify({novels:novels.value, folders:folders.value, config:{apiKey:apiKey.value,bgColor:bgColor.value}})], {type:'application/json'});
             const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'backup.json'; a.click();
@@ -750,14 +690,14 @@ createApp({
             showSettings, showDetail, showFilteredView, showFabMenu, showActionSheet, showEditModal, showCropper, isLoading,
             currentFolder, currentItems, currentFoldersList, currentNovelsList, activeNovel, filteredList, filterTitle, novelsByPlatform,
             selectedItem, selectedType, editForm, tempBgSrc, cropState, cropStyle: computed(()=>`transform:translate(${cropState.x}px,${cropState.y}px) scale(${cropState.scale})`),
-            // Methods
             openDetail, closeDetail, formatDate, enterFolder, openFilteredView, closeFilteredView, performSearch,
             openManualAdd, createNewFolder, handleAiUpload, openEditModal, closeEditModal, saveEdit, renameFolder, deleteItem,
-            handleSwipeStart, handleSwipeEnd, handleSettingsSwipe, startLongPress, cancelLongPress, closeActionSheet,
-            triggerBgUpload, handleBgSelect, cropTouchStart, cropTouchMove, confirmCrop, exportData, triggerImport, handleImportData, clearData
+            handleMainSwipeStart, handleMainSwipeEnd, handleSettingsSwipeStart, handleSettingsSwipeEnd, handleFilteredSwipeStart, handleFilteredSwipeEnd,
+            startLongPress, cancelLongPress, closeActionSheet, triggerBgUpload, handleBgSelect, cropTouchStart, cropTouchMove, confirmCrop, 
+            exportData, triggerImport, handleImportData, clearData
         };
     }
 }).mount('#app');
 </script>
 </body>
-</html>
+</html>```

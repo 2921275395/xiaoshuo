@@ -10,7 +10,7 @@ createApp({
         const apiKey = ref('');
         const apiProvider = ref('zhipu');
         const apiUrl = ref('');
-        const apiModel = ref('');
+        const apiModel = ref('glm-4v'); // Default to zhipu
         const modelList = ref([]);
         const bgColor = ref('#8EC5FC');
         const bgImage = ref('');
@@ -96,6 +96,16 @@ createApp({
                 apiProvider: apiProvider.value, apiUrl: apiUrl.value, apiModel: apiModel.value
             }));
             updateBg();
+        });
+        
+        // Auto-switch model when provider changes
+        watch(apiProvider, (newVal) => {
+            if (newVal === 'zhipu') {
+                apiModel.value = 'glm-4v';
+            } else {
+                // For OpenAI, reset to default if currently on zhipu model
+                if (apiModel.value === 'glm-4v') apiModel.value = 'gpt-4o';
+            }
         });
 
         const updateBg = () => {
@@ -245,6 +255,7 @@ createApp({
                 let headers = { 'Authorization': `Bearer ${apiKey.value}` };
                 
                 if(apiProvider.value === 'zhipu') {
+                    // Logic skipped in UI for Zhipu, but keeps here just in case
                     url = 'https://open.bigmodel.cn/api/paas/v4/models'; 
                 } else {
                     let base = apiUrl.value || 'https://api.openai.com/v1';
@@ -255,13 +266,15 @@ createApp({
 
                 const res = await fetch(url, { method: 'GET', headers });
                 
-                // 修复 JSON 报错的核心逻辑：先取文本，再解析
+                // --- FIX: Robust Text Handling ---
                 const text = await res.text();
+                if (!text || text.trim() === '') throw new Error("API 返回了空内容 (可能 CORS 阻止或地址错误)");
+
                 let data;
                 try {
                     data = JSON.parse(text);
                 } catch(e) {
-                    throw new Error(`返回内容不是 JSON (可能是错误页): ${text.slice(0,100)}...`);
+                    throw new Error(`非 JSON 响应 (可能是错误页): ${text.substring(0, 80)}...`);
                 }
                 
                 if(data.error) throw new Error(data.error.message || JSON.stringify(data.error));
@@ -276,22 +289,16 @@ createApp({
                     if(modelList.value.length > 0) {
                         if(!apiModel.value) apiModel.value = modelList.value[0].id;
                         showToast(`获取成功，共 ${modelList.value.length} 个模型`);
-                        showModelPicker.value = true; // 自动弹出选择
+                        showModelPicker.value = true;
                     } else {
                         throw new Error("模型列表为空");
                     }
                 } else {
-                    throw new Error("无法解析返回格式");
+                    throw new Error("格式错误: data不是数组");
                 }
             } catch(e) {
                 showToast("连接失败: " + e.message);
                 console.error(e);
-                // Fallback
-                modelList.value = [
-                    {id: apiProvider.value==='zhipu' ? 'glm-4v' : 'gpt-4o'},
-                    {id: apiProvider.value==='zhipu' ? 'glm-4v-flash' : 'gpt-4-turbo'},
-                ];
-                if(!apiModel.value) apiModel.value = modelList.value[0].id;
             } finally {
                 isLoading.value = false;
             }
@@ -307,7 +314,9 @@ createApp({
             reader.onload = async() => {
                 const base64Img = reader.result.split(',')[1];
                 let url, headers, body;
-                const model = apiModel.value || (apiProvider.value === 'zhipu' ? 'glm-4v' : 'gpt-4o');
+                
+                // Force Zhipu model if provider is Zhipu
+                const model = (apiProvider.value === 'zhipu') ? 'glm-4v' : (apiModel.value || 'gpt-4o');
                 
                 try {
                     if (apiProvider.value === 'zhipu') {
@@ -329,15 +338,24 @@ createApp({
                     }
 
                     const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
-                    // 安全解析
+                    
+                    // --- FIX: Robust Text Handling ---
                     const text = await res.text();
+                    if (!text || text.trim() === '') throw new Error("API 返回空内容");
+                    
                     let d;
-                    try { d = JSON.parse(text); } catch(e) { throw new Error(`API响应非JSON: ${text.slice(0,50)}...`); }
+                    try { d = JSON.parse(text); } 
+                    catch(e) { throw new Error(`API 响应非 JSON: ${text.substring(0,60)}...`); }
                     
-                    if(d.error) throw new Error(d.error.message);
-                    
+                    if(d.error) throw new Error(d.error.message || JSON.stringify(d.error));
+                    if(!d.choices || !d.choices[0]) throw new Error("API 未返回 choices");
+
                     const content = d.choices[0].message.content.replace(/```json|```/g,'').trim();
-                    const jsonStr = content.substring(content.indexOf('{'), content.lastIndexOf('}')+1);
+                    const startIdx = content.indexOf('{');
+                    const endIdx = content.lastIndexOf('}');
+                    if(startIdx === -1 || endIdx === -1) throw new Error("AI未返回有效JSON格式");
+                    
+                    const jsonStr = content.substring(startIdx, endIdx+1);
                     const newNovel = JSON.parse(jsonStr);
                     
                     novels.value.unshift({ id: Date.now(), ...newNovel, folderId: currentFolder.value ? currentFolder.value.id : null, createTime: new Date().toISOString() });
@@ -405,7 +423,6 @@ createApp({
         const cropBoxStyle = computed(() => ({ left: cropBox.x + 'px', top: cropBox.y + 'px', width: cropBox.w + 'px', height: cropBox.h + 'px' }));
         
         const cropTouchStart = (e) => {
-            // Store initial touches
             cropStartTouches = Array.from(e.touches).map(t => ({x: t.pageX, y: t.pageY}));
             cropStartBox = { ...cropBox };
             if (e.touches.length === 2) {
@@ -418,52 +435,28 @@ createApp({
 
         const cropTouchMove = (e) => {
             if (!showCropper.value) return;
-            // IMPORTANT: Prevent default browser zooming/scrolling
             if (e.cancelable) e.preventDefault();
-            
             const imgRect = cropImg.value.getBoundingClientRect();
             const areaRect = cropArea.value.getBoundingClientRect();
-            const minX = imgRect.left - areaRect.left; 
-            const maxX = minX + imgRect.width;
-            const minY = imgRect.top - areaRect.top; 
-            const maxY = minY + imgRect.height;
+            const minX = imgRect.left - areaRect.left; const maxX = minX + imgRect.width;
+            const minY = imgRect.top - areaRect.top; const maxY = minY + imgRect.height;
 
             if (e.touches.length === 1 && cropStartTouches.length >= 1) {
-                // Dragging
                 const dx = e.touches[0].pageX - cropStartTouches[0].x;
                 const dy = e.touches[0].pageY - cropStartTouches[0].y;
-                let nx = cropStartBox.x + dx; 
-                let ny = cropStartBox.y + dy;
-                
-                // Boundaries
-                if (nx < minX) nx = minX;
-                if (ny < minY) ny = minY;
+                let nx = cropStartBox.x + dx; let ny = cropStartBox.y + dy;
+                if (nx < minX) nx = minX; if (ny < minY) ny = minY;
                 if (nx + cropBox.w > maxX) nx = maxX - cropBox.w;
                 if (ny + cropBox.h > maxY) ny = maxY - cropBox.h;
-                
-                cropBox.x = nx; 
-                cropBox.y = ny;
+                cropBox.x = nx; cropBox.y = ny;
             } else if (e.touches.length === 2 && cropStartTouches.length >= 2) {
-                // Pinch Zoom
-                const curDist = Math.hypot(
-                    e.touches[0].pageX - e.touches[1].pageX, 
-                    e.touches[0].pageY - e.touches[1].pageY
-                );
+                const curDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
                 const scale = curDist / (cropStartDist || 1);
-                
-                // Maintain aspect ratio
                 const ratio = window.innerWidth / window.innerHeight;
-                let nw = cropStartBox.w * scale;
-                let nh = nw / ratio;
-                
-                // Limits
+                let nw = cropStartBox.w * scale; let nh = nw / ratio;
                 if (nw > 50 && nw < imgRect.width && nh < imgRect.height) {
-                    // Center Zoom: adjust x/y based on size difference
-                    const dx = (nw - cropStartBox.w) / 2;
-                    const dy = (nh - cropStartBox.h) / 2;
-                    let nx = cropStartBox.x - dx;
-                    let ny = cropStartBox.y - dy;
-                    
+                    const dx = (nw - cropStartBox.w) / 2; const dy = (nh - cropStartBox.h) / 2;
+                    let nx = cropStartBox.x - dx; let ny = cropStartBox.y - dy;
                     if(nx >= minX && ny >= minY && nx+nw <= maxX && ny+nh <= maxY) {
                         cropBox.w = nw; cropBox.h = nh; cropBox.x = nx; cropBox.y = ny;
                     }
@@ -475,29 +468,11 @@ createApp({
             const cvs = document.createElement('canvas'); const ctx = cvs.getContext('2d');
             const dpr = window.devicePixelRatio || 2; 
             cvs.width = window.innerWidth * dpr; cvs.height = window.innerHeight * dpr;
-            
-            const img = cropImg.value; 
-            const imgRect = img.getBoundingClientRect(); 
-            const areaRect = cropArea.value.getBoundingClientRect();
-            
-            // Calculate relative position within the image
-            const boxRelX = cropBox.x - (imgRect.left - areaRect.left); 
-            const boxRelY = cropBox.y - (imgRect.top - areaRect.top);
-            
-            // Calculate scale between displayed image and natural image
-            const scaleX = img.naturalWidth / imgRect.width; 
-            const scaleY = img.naturalHeight / imgRect.height;
-
-            ctx.drawImage(
-                img, 
-                boxRelX * scaleX, boxRelY * scaleY, 
-                cropBox.w * scaleX, cropBox.h * scaleY, 
-                0, 0, 
-                cvs.width, cvs.height
-            );
-            
-            bgImage.value = cvs.toDataURL('image/png'); 
-            showCropper.value = false;
+            const img = cropImg.value; const imgRect = img.getBoundingClientRect(); const areaRect = cropArea.value.getBoundingClientRect();
+            const boxRelX = cropBox.x - (imgRect.left - areaRect.left); const boxRelY = cropBox.y - (imgRect.top - areaRect.top);
+            const scaleX = img.naturalWidth / imgRect.width; const scaleY = img.naturalHeight / imgRect.height;
+            ctx.drawImage(img, boxRelX * scaleX, boxRelY * scaleY, cropBox.w * scaleX, cropBox.h * scaleY, 0, 0, cvs.width, cvs.height);
+            bgImage.value = cvs.toDataURL('image/png'); showCropper.value = false;
         };
 
         // Other Actions

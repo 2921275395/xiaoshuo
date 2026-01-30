@@ -118,10 +118,14 @@
                  <i class="ri-arrow-down-s-line"></i>
             </div>
             
-            <input type="password" v-model="apiKey" class="input-glass" placeholder="API Key">
-
-            <!-- OpenAI 专属设置 (URL 和 模型选择) -->
+            <!-- 分离的 Key 输入框 -->
+            <div v-if="apiProvider === 'zhipu'">
+                <input type="password" v-model="zhipuKey" class="input-glass" placeholder="智谱 API Key">
+                <div style="font-size:12px; opacity:0.6; margin-bottom:10px;">* 自动使用 GLM-4V 模型</div>
+            </div>
+            
             <div v-if="apiProvider === 'openai'">
+                <input type="password" v-model="openaiKey" class="input-glass" placeholder="OpenAI/公益站 API Key">
                 <input v-model="apiUrl" class="input-glass" placeholder="API URL (例如 https://api.openai.com/v1)">
                 
                 <button class="btn" @click="fetchModels" style="margin-top:5px; margin-bottom:12px;">
@@ -169,17 +173,32 @@
         <div class="full-view-content">
             <div class="detail-header">
                 <div class="detail-title">{{ activeNovel.title }}</div>
-                <div class="detail-author">{{ activeNovel.author }}</div>
+                <!-- 作者可点击 -->
+                <div class="detail-author clickable" @click="filterByAuthor(activeNovel.author)">
+                    {{ activeNovel.author }} <i class="ri-arrow-right-s-line" style="font-size:12px; vertical-align:middle;"></i>
+                </div>
                 <div class="detail-platform">{{ activeNovel.platform }}</div>
             </div>
              <div class="info-block">
                 <label>创建日期</label>
                 <div style="font-size:16px;">{{ formatDate(activeNovel.createTime) }}</div>
             </div>
+            
+            <!-- 多重阅读日期 -->
             <div class="info-block">
-                <label>阅读日期</label>
-                <input type="date" v-model="activeNovel.readDate" class="date-input">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <label style="margin:0;">阅读记录</label>
+                    <div class="add-date-btn" @click="addReadDate"><i class="ri-add-line"></i></div>
+                </div>
+                <div class="date-tags">
+                    <div v-for="(date, idx) in activeNovel.readDates" :key="idx" class="date-tag">
+                        <input type="date" v-model="activeNovel.readDates[idx]" class="date-input-mini">
+                        <i class="ri-close-line remove-date" @click="removeReadDate(idx)"></i>
+                    </div>
+                    <div v-if="!activeNovel.readDates || activeNovel.readDates.length === 0" style="opacity:0.5; font-size:13px;">暂无记录，点击 + 添加</div>
+                </div>
             </div>
+
             <div class="info-block" style="min-height: 200px;">
                 <label style="display:block; margin-bottom:5px;">书评</label>
                 <textarea v-model="activeNovel.review" class="review-area" placeholder="记录当下的想法..."></textarea>
@@ -256,7 +275,7 @@
      <div class="modal-mask" :class="{show: showProviderPicker}" @click.self="showProviderPicker = false">
         <div class="modal-card">
             <h3 class="modal-title">选择 API 供应商</h3>
-            <button class="btn" @click="apiProvider='zhipu'; showProviderPicker=false">智谱 AI (自动使用 GLM-4V)</button>
+            <button class="btn" @click="apiProvider='zhipu'; showProviderPicker=false">智谱 AI</button>
             <button class="btn" @click="apiProvider='openai'; showProviderPicker=false">OpenAI (及公益站)</button>
         </div>
     </div>
@@ -285,7 +304,7 @@
         <button class="btn btn-cancel" @click="closeActionSheet">取消</button>
     </div>
 
-    <!-- 裁剪 -->
+    <!-- 裁剪 (修复版) -->
     <div class="cropper-modal" v-if="showCropper">
         <div class="cropper-area" ref="cropArea" @touchstart="cropTouchStart" @touchmove="cropTouchMove">
             <img :src="tempBgSrc" class="crop-target-img" ref="cropImg" @load="initCropBox">
@@ -294,12 +313,12 @@
                 <div class="crop-corner bl"></div><div class="crop-corner br"></div>
             </div>
             <div class="crop-tip">
-                高清裁剪：拖动框移动 · 双指缩放
+                拖动以移动 · 双指缩放
             </div>
         </div>
         <div class="crop-actions">
             <button class="btn" style="border-color:rgba(255,255,255,0.3);" @click="showCropper=false">取消</button>
-            <button class="btn" @click="confirmCrop">应用高清壁纸</button>
+            <button class="btn" @click="confirmCrop">应用壁纸</button>
         </div>
     </div>
     
@@ -311,12 +330,9 @@
         </div>
     </div>
 
-    <!-- 加载动画 -->
+    <!-- 极简加载动画 -->
     <div class="loading-overlay" v-if="isLoading">
-        <div class="loading-box">
-            <i class="ri-loader-4-line ri-spin"></i>
-            <div style="margin-top:10px; font-size:14px; opacity:0.8;">处理中...</div>
-        </div>
+        <i class="ri-loader-4-line ri-spin simple-loader"></i>
     </div>
 
     <input type="file" id="bgInput" accept="image/*" @change="handleBgSelect">

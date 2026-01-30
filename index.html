@@ -48,7 +48,6 @@
 
         #app { min-height: 100vh; width: 100%; overflow-x: hidden; position: relative; }
         
-        /* 移除 transform 以解决毛玻璃闪烁问题 */
         .main-content {
             padding: 20px; padding-bottom: 120px;
             min-height: 100vh; box-sizing: border-box;
@@ -75,7 +74,6 @@
         .card:active { transform: scale(0.96); background: rgba(255,255,255,0.15); }
         .card.selected { border: 2px solid rgba(255,255,255,0.8); background: rgba(255,255,255,0.2); }
         
-        /* 选择模式下的复选框模拟 */
         .select-indicator {
             position: absolute; top: 10px; right: 10px;
             width: 20px; height: 20px; border-radius: 50%;
@@ -125,21 +123,21 @@
         .fab-container.open .fab-item:nth-child(2) { transform: translate(-45px, -45px); opacity: 1; pointer-events: auto; }
         .fab-container.open .fab-item:nth-child(3) { transform: translateX(-60px); opacity: 1; pointer-events: auto; }
 
-        /* 滑动面板 (Settings, Detail) - 使用 transform */
+        /* 滑动面板 */
         .full-view, .settings-panel {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(200, 225, 255, 0.1); /* 极低透明度，依赖 blur */
+            background: rgba(200, 225, 255, 0.1);
             backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
             z-index: 300; display: flex; flex-direction: column;
             transform: translateX(100%); transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
             box-sizing: border-box;
-            will-change: transform; /* 性能优化 */
+            will-change: transform;
         }
         .settings-panel { z-index: 400; left: auto; right: 0; }
         .full-view.show, .settings-panel.open { transform: translateX(0); }
         .full-view-content { padding: 20px; overflow-y: auto; flex: 1; }
 
-        /* 输入框 - 全透明微边框 */
+        /* 输入框 & Select */
         .input-glass {
             width: 100%; padding: 14px;
             background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15);
@@ -147,8 +145,10 @@
             font-size: 15px; margin-bottom: 12px; text-shadow: var(--text-shadow);
         }
         .input-glass::placeholder { color: rgba(255,255,255,0.4); text-shadow: none; }
-        select.input-glass { appearance: none; color: white; background: rgba(0,0,0,0.1); }
         
+        select.input-glass { appearance: none; background-color: rgba(0,0,0,0.1); }
+        select.input-glass option { background: #333; color: white; } /* 防止下拉菜单在某些设备上看不清 */
+
         .stat-row {
             padding: 16px; border-radius: 16px; background: rgba(255,255,255,0.05);
             border: 1px solid rgba(255,255,255,0.1);
@@ -156,7 +156,7 @@
             text-shadow: var(--text-shadow);
         }
 
-        /* 纯毛玻璃按钮 - 去除所有颜色，只留光感 */
+        /* 纯毛玻璃按钮 */
         .btn {
             padding: 14px 0; width: 100%; 
             border-radius: var(--btn-radius);
@@ -167,18 +167,18 @@
             text-shadow: var(--text-shadow);
             transition: all 0.2s;
             display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
         }
         .btn:active { background: rgba(255,255,255,0.2); transform: scale(0.99); }
-        
-        .btn-sm { width: auto; padding: 10px 20px; font-size: 13px; display: inline-flex; }
+        .btn-mini { padding: 8px 15px; font-size: 12px; width: auto; margin: 0; margin-left: 10px; }
 
-        /* 统一 Modal 样式 */
+        /* 统一 Modal 样式 (代替 Alert/Confirm) */
         .modal-mask, .action-mask {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.1); z-index: 500;
             opacity: 0; pointer-events: none; transition: opacity 0.2s;
             display: flex; align-items: center; justify-content: center;
-            backdrop-filter: blur(5px); /* 背景微糊 */
+            backdrop-filter: blur(5px);
         }
         .modal-mask.show, .action-mask.show { opacity: 1; pointer-events: auto; }
         
@@ -201,7 +201,6 @@
         }
         .action-sheet.show { transform: translateY(0); }
 
-        /* 多选/移动底部栏 */
         .selection-bar {
             position: fixed; bottom: 0; left: 0; width: 100%; padding: 20px;
             background: rgba(255,255,255,0.15); backdrop-filter: blur(40px);
@@ -241,8 +240,6 @@
             padding: 16px; margin-bottom: 12px;
             border: 1px solid rgba(255,255,255,0.08);
         }
-
-        /* Folder Picker List */
         .folder-list-item {
             padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.1);
             display: flex; align-items: center;
@@ -333,7 +330,17 @@
                    placeholder="搜索..." @keyup.enter="performSearch">
             <button v-if="searchQuery" class="btn" style="margin-top:0; margin-bottom:20px;" @click="performSearch">搜索</button>
 
-            <h3 style="font-size:14px; opacity:0.7; margin-top:20px; text-shadow:var(--text-shadow);">数据 & 外观</h3>
+            <!-- 藏书总览 -->
+            <h3 style="font-size:14px; opacity:0.7; margin-top:20px; text-shadow:var(--text-shadow);">藏书总览</h3>
+            <div v-if="Object.keys(novelsByPlatform).length === 0" style="opacity:0.5; font-size:12px; padding:10px;">暂无数据</div>
+            <div v-for="(list, platform) in novelsByPlatform" :key="platform" 
+                 class="stat-row" @click="openFilteredView(platform, list)">
+                <span>{{ platform || '其他' }}</span>
+                <span style="opacity:0.7">{{ list.length }} <i class="ri-arrow-right-s-line"></i></span>
+            </div>
+
+            <!-- 数据 & 外观 -->
+            <h3 style="font-size:14px; opacity:0.7; margin-top:30px; text-shadow:var(--text-shadow);">数据 & 外观</h3>
             <div style="display:flex; gap:10px;">
                 <button class="btn" @click="exportData">备份</button>
                 <button class="btn" @click="triggerImport">导入</button>
@@ -347,23 +354,30 @@
                  </button>
             </div>
             
+            <!-- AI 设置 -->
             <h3 style="font-size:14px; opacity:0.7; margin-top:30px; text-shadow:var(--text-shadow);">AI 设置</h3>
             <select v-model="apiProvider" class="input-glass">
                 <option value="zhipu">智谱 AI</option>
-                <option value="openai">OpenAI</option>
+                <option value="openai">OpenAI (含公益站)</option>
             </select>
             
-            <!-- 模型名称输入 -->
-            <input v-model="apiModel" class="input-glass" placeholder="模型名称 (如 glm-4v, gpt-4o)">
-            
-            <input v-if="apiProvider === 'openai'" v-model="apiUrl" class="input-glass" placeholder="API URL (可选，默认官方)">
+            <input v-if="apiProvider === 'openai'" v-model="apiUrl" class="input-glass" placeholder="API URL (例如公益站地址)">
             <input type="password" v-model="apiKey" class="input-glass" placeholder="API Key">
             
-            <div style="display:flex; gap:10px; margin-top:10px;">
-                <button class="btn" @click="testApiConnection">测试连接</button>
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px;">
+                <button class="btn" style="margin-top:0;" @click="fetchModels">
+                    <i class="ri-link"></i> 连接 / 刷新模型
+                </button>
             </div>
 
-            <button class="btn" @click="clearData" style="margin-top:40px; margin-bottom:50px; opacity:0.7;">清空所有数据</button>
+            <select v-model="apiModel" class="input-glass" v-if="availableModels.length > 0">
+                <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
+            </select>
+            <div v-else-if="apiKey" style="font-size:12px; opacity:0.6; text-align:center;">
+                (请先点击连接以加载模型列表)
+            </div>
+
+            <button class="btn" @click="confirmClearData" style="margin-top:40px; margin-bottom:50px; opacity:0.7; border-color:rgba(255,100,100,0.3);">清空所有数据</button>
         </div>
     </div>
 
@@ -394,17 +408,19 @@
             <span>详情</span>
             <div style="width:24px;"></div>
         </div>
-        
         <div class="full-view-content">
             <div class="detail-header">
                 <div style="font-size:28px; font-weight:bold; margin-bottom:10px; text-shadow:var(--text-shadow);">{{ activeNovel.title }}</div>
                 <div style="opacity:0.8; text-shadow:var(--text-shadow);">{{ activeNovel.author }}</div>
                 <div style="font-size:12px; opacity:0.6; margin-top:5px;">{{ activeNovel.platform }}</div>
             </div>
-            <!-- ...详情内容同前... -->
-             <div class="info-block">
+            <div class="info-block">
                 <label style="font-size:12px; opacity:0.6;">创建日期</label>
                 <div style="font-size:16px;">{{ formatDate(activeNovel.createTime) }}</div>
+            </div>
+            <div class="info-block">
+                 <label style="font-size:12px; opacity:0.6;">阅读日期</label>
+                 <input type="date" v-model="activeNovel.readDate" style="background:none; border:none; color:white; width:100%; font-size:16px;">
             </div>
             <div class="info-block" style="min-height: 200px;">
                 <label style="font-size:12px; opacity:0.6; display:block; margin-bottom:5px;">书评</label>
@@ -421,7 +437,6 @@
             <h3 style="margin-top:0; text-align:center; text-shadow:var(--text-shadow); margin-bottom:20px;">
                 {{ addFormMode === 'edit' ? '编辑信息' : (addFormType === 'folder' ? '新建文件夹' : '手动添加') }}
             </h3>
-            
             <div v-if="addFormType === 'folder'">
                  <input v-model="addForm.title" class="input-glass" placeholder="文件夹名称">
             </div>
@@ -430,10 +445,21 @@
                 <input v-model="addForm.author" class="input-glass" placeholder="作者">
                 <input v-model="addForm.platform" class="input-glass" placeholder="平台 (如起点)">
             </div>
-
             <div style="display:flex; gap:10px; margin-top:10px;">
                 <button class="btn" @click="closeAddModal" style="opacity:0.7">取消</button>
                 <button class="btn" @click="confirmAddOrEdit">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 系统通用提示弹窗 (Alert/Confirm) -->
+    <div class="modal-mask" :class="{show: sysModal.show}" @click.self="!sysModal.isConfirm && closeSysModal()">
+        <div class="modal-card" style="text-align: center;">
+            <h3 style="margin-top:0; margin-bottom:15px; text-shadow:var(--text-shadow);">{{ sysModal.title }}</h3>
+            <div style="font-size:15px; opacity:0.9; margin-bottom:25px;">{{ sysModal.msg }}</div>
+            <div style="display:flex; gap:15px;">
+                <button v-if="sysModal.isConfirm" class="btn" style="opacity:0.7" @click="closeSysModal">取消</button>
+                <button class="btn" @click="sysModalConfirm">确定</button>
             </div>
         </div>
     </div>
@@ -442,8 +468,6 @@
     <div class="modal-mask" :class="{show: showMoveModal}" @click.self="closeMoveModal">
         <div class="modal-card" style="height: 60vh;">
             <h3 style="margin-top:0; text-align:center; margin-bottom:10px;">移动到...</h3>
-            
-            <!-- 路径面包屑 -->
             <div style="display:flex; align-items:center; font-size:14px; margin-bottom:15px; opacity:0.8; overflow-x:auto;">
                 <span @click="moveNavTo(null)" style="padding:5px;">根目录</span>
                 <span v-for="p in movePath" :key="p.id" style="display:flex; align-items:center;">
@@ -451,7 +475,6 @@
                     <span @click="moveNavTo(p)" style="padding:5px; white-space:nowrap;">{{ p.name }}</span>
                 </span>
             </div>
-
             <div style="flex:1; overflow-y:auto; background:rgba(0,0,0,0.1); border-radius:15px; margin-bottom:15px;">
                 <div v-if="moveCurrentSubfolders.length === 0" style="padding:20px; text-align:center; opacity:0.5;">没有子文件夹</div>
                 <div v-for="f in moveCurrentSubfolders" :key="f.id" class="folder-list-item" @click="enterMoveFolder(f)">
@@ -460,7 +483,6 @@
                     <i class="ri-arrow-right-s-line" style="opacity:0.5;"></i>
                 </div>
             </div>
-
             <div style="display:flex; gap:10px;">
                 <button class="btn" @click="closeMoveModal" style="opacity:0.7">取消</button>
                 <button class="btn" @click="confirmMove">移动至此</button>
@@ -519,11 +541,12 @@ createApp({
         const apiKey = ref('');
         const apiProvider = ref('zhipu');
         const apiUrl = ref('');
-        const apiModel = ref(''); // Custom Model Name
+        const apiModel = ref(''); 
+        const availableModels = ref([]); // Fetched models
         const bgColor = ref('#8EC5FC');
         const bgImage = ref('');
         
-        // UI State
+        // UI
         const showSettings = ref(false);
         const showDetail = ref(false);
         const showFilteredView = ref(false);
@@ -532,34 +555,37 @@ createApp({
         const showCropper = ref(false);
         const isLoading = ref(false);
         
-        // Modal State (Unified)
+        // Modals
         const showAddModal = ref(false);
-        const addFormMode = ref('add'); // 'add' or 'edit'
-        const addFormType = ref('novel'); // 'novel' or 'folder'
+        const addFormMode = ref('add'); const addFormType = ref('novel');
         const addForm = reactive({ id: null, title: '', author: '', platform: '' });
-
-        // Selection & Move State
-        const isSelectionMode = ref(false);
-        const selectedItems = ref([]); // Stores IDs like "n-123" or "f-456"
-        const showMoveModal = ref(false);
-        const moveTargetId = ref(null); // Current folder ID in picker (null=root)
         
-        // Core Selection
+        // System Modal (Replaces Alert/Confirm)
+        const sysModal = reactive({ show: false, title: '', msg: '', isConfirm: false, onConfirm: null });
+        const triggerAlert = (msg, title="提示") => { sysModal.title=title; sysModal.msg=msg; sysModal.isConfirm=false; sysModal.show=true; };
+        const triggerConfirm = (msg, callback, title="确认") => { sysModal.title=title; sysModal.msg=msg; sysModal.isConfirm=true; sysModal.onConfirm=callback; sysModal.show=true; };
+        const closeSysModal = () => sysModal.show = false;
+        const sysModalConfirm = () => { if(sysModal.onConfirm) sysModal.onConfirm(); closeSysModal(); };
+
+        // Selection & Move
+        const isSelectionMode = ref(false);
+        const selectedItems = ref([]); 
+        const showMoveModal = ref(false);
+        const moveTargetId = ref(null);
+        
+        // Core
         const currentFolder = ref(null);
         const activeNovel = ref(null);
         const filteredList = ref([]);
         const filterTitle = ref('');
         const searchQuery = ref('');
-        const selectedItem = ref(null); // For single action sheet
+        const selectedItem = ref(null);
         const selectedType = ref('');
         
         // Cropper
-        const tempBgSrc = ref('');
-        const cropImg = ref(null);
-        const cropArea = ref(null);
+        const tempBgSrc = ref(''); const cropImg = ref(null); const cropArea = ref(null);
         const cropBox = reactive({ x: 0, y: 0, w: 0, h: 0 });
-        let touchStartX = 0;
-        let cropStartTouches = []; let cropStartBox = {}; let cropStartDist = 0;
+        let touchStartX = 0; let cropStartTouches = []; let cropStartBox = {}; let cropStartDist = 0;
 
         onMounted(() => {
             const n = localStorage.getItem('rf_novels_v3');
@@ -574,7 +600,7 @@ createApp({
                 bgImage.value = cfg.bgImage || '';
                 apiProvider.value = cfg.apiProvider || 'zhipu';
                 apiUrl.value = cfg.apiUrl || '';
-                apiModel.value = cfg.apiModel || (apiProvider.value === 'zhipu' ? 'glm-4v' : 'gpt-4o');
+                apiModel.value = cfg.apiModel || '';
             }
             updateBg();
         });
@@ -600,6 +626,17 @@ createApp({
         const currentItems = computed(() => [...currentFoldersList.value, ...currentNovelsList.value]);
         const currentFoldersList = computed(() => folders.value.filter(f => (f.parentId || null) === (currentFolder.value ? currentFolder.value.id : null)));
         const currentNovelsList = computed(() => novels.value.filter(n => n.folderId === (currentFolder.value ? currentFolder.value.id : null)));
+        
+        // Data Overview (Restored)
+        const novelsByPlatform = computed(() => {
+            const map = {};
+            novels.value.forEach(n => {
+                const p = n.platform || '其他';
+                if(!map[p]) map[p] = [];
+                map[p].push(n);
+            });
+            return map;
+        });
 
         // Navigation
         const enterFolder = (f) => currentFolder.value = f;
@@ -614,176 +651,150 @@ createApp({
         };
         const closeDetail = () => { showDetail.value = false; activeNovel.value = null; };
         
-        // Unified Add/Edit Modal Logic
+        // Add/Edit
         const openAddModal = (type) => {
-            addFormMode.value = 'add';
-            addFormType.value = type === 'manual' ? 'novel' : 'folder';
+            addFormMode.value = 'add'; addFormType.value = type === 'manual' ? 'novel' : 'folder';
             addForm.title = ''; addForm.author = ''; addForm.platform = '';
-            showFabMenu.value = false;
-            showAddModal.value = true;
+            showFabMenu.value = false; showAddModal.value = true;
         };
         const closeAddModal = () => showAddModal.value = false;
         const confirmAddOrEdit = () => {
-            if(!addForm.title.trim()) { alert("请输入名称"); return; }
-            
+            if(!addForm.title.trim()) { triggerAlert("请输入名称"); return; }
             if(addFormMode.value === 'add') {
-                if(addFormType.value === 'folder') {
-                    folders.value.push({ id: Date.now(), name: addForm.title, parentId: currentFolder.value ? currentFolder.value.id : null });
-                } else {
-                    novels.value.unshift({
-                        id: Date.now(), title: addForm.title, author: addForm.author||'佚名', platform: addForm.platform||'',
-                        folderId: currentFolder.value ? currentFolder.value.id : null, createTime: new Date().toISOString()
-                    });
-                }
+                if(addFormType.value === 'folder') folders.value.push({ id: Date.now(), name: addForm.title, parentId: currentFolder.value ? currentFolder.value.id : null });
+                else novels.value.unshift({ id: Date.now(), title: addForm.title, author: addForm.author||'佚名', platform: addForm.platform||'', folderId: currentFolder.value ? currentFolder.value.id : null, createTime: new Date().toISOString() });
             } else {
-                // Edit mode
                 const target = selectedItem.value;
                 if(selectedType.value === 'folder') target.name = addForm.title;
-                else {
-                    target.title = addForm.title; target.author = addForm.author; target.platform = addForm.platform;
-                }
+                else { target.title = addForm.title; target.author = addForm.author; target.platform = addForm.platform; }
             }
             closeAddModal();
         };
 
-        // Action Sheet & Edit Link
         const openEditModalFromSheet = () => {
-            addFormMode.value = 'edit';
-            addFormType.value = 'novel';
-            addForm.title = selectedItem.value.title;
-            addForm.author = selectedItem.value.author;
-            addForm.platform = selectedItem.value.platform;
-            showActionSheet.value = false;
-            showAddModal.value = true;
+            addFormMode.value = 'edit'; addFormType.value = 'novel';
+            addForm.title = selectedItem.value.title; addForm.author = selectedItem.value.author; addForm.platform = selectedItem.value.platform;
+            showActionSheet.value = false; showAddModal.value = true;
         };
         const openRenameFromSheet = () => {
-            addFormMode.value = 'edit';
-            addFormType.value = 'folder';
+            addFormMode.value = 'edit'; addFormType.value = 'folder';
             addForm.title = selectedItem.value.name;
-            showActionSheet.value = false;
-            showAddModal.value = true;
+            showActionSheet.value = false; showAddModal.value = true;
         };
 
-        // Selection & Move Logic
-        const enterSelectionModeFromSheet = () => {
-            showActionSheet.value = false;
-            isSelectionMode.value = true;
-            selectedItems.value = [selectedType.value === 'novel' ? `n-${selectedItem.value.id}` : `f-${selectedItem.value.id}`];
-        };
-        const exitSelectionMode = () => {
-            isSelectionMode.value = false;
-            selectedItems.value = [];
-        };
-        const isSelected = (id, type) => selectedItems.value.includes(`${type === 'novel' ? 'n' : 'f'}-${id}`);
+        // Selection & Move
+        const enterSelectionModeFromSheet = () => { showActionSheet.value = false; isSelectionMode.value = true; selectedItems.value = [selectedType.value === 'novel' ? `n-${selectedItem.value.id}` : `f-${selectedItem.value.id}`]; };
+        const exitSelectionMode = () => { isSelectionMode.value = false; selectedItems.value = []; };
+        const isSelected = (id, type) => selectedItems.value.includes(`${type==='novel'?'n':'f'}-${id}`);
         const handleCardClick = (item, type) => {
             if (isSelectionMode.value) {
                 const key = `${type==='novel'?'n':'f'}-${item.id}`;
                 if (selectedItems.value.includes(key)) selectedItems.value = selectedItems.value.filter(k => k !== key);
                 else selectedItems.value.push(key);
-            } else {
-                if(type === 'novel') openDetail(item);
-                else enterFolder(item);
-            }
+            } else { type === 'novel' ? openDetail(item) : enterFolder(item); }
         };
 
-        // Move Modal Logic (Nested Folders)
-        const openMoveModal = () => {
-            if(selectedItems.value.length === 0) return;
-            moveTargetId.value = null; // Start at root
-            showMoveModal.value = true;
-        };
+        const openMoveModal = () => { if(selectedItems.value.length === 0) return; moveTargetId.value = null; showMoveModal.value = true; };
         const closeMoveModal = () => showMoveModal.value = false;
-        
-        // Computed for Move Modal
         const moveCurrentSubfolders = computed(() => folders.value.filter(f => (f.parentId || null) === moveTargetId.value));
         const movePath = computed(() => {
-            let path = [];
-            let curr = folders.value.find(f => f.id === moveTargetId.value);
-            while(curr) {
-                path.unshift(curr);
-                curr = folders.value.find(f => f.id === curr.parentId);
-            }
+            let path = []; let curr = folders.value.find(f => f.id === moveTargetId.value);
+            while(curr) { path.unshift(curr); curr = folders.value.find(f => f.id === curr.parentId); }
             return path;
         });
         const enterMoveFolder = (f) => moveTargetId.value = f.id;
         const moveNavTo = (f) => moveTargetId.value = f ? f.id : null;
-        
         const confirmMove = () => {
             selectedItems.value.forEach(key => {
                 const type = key.startsWith('n') ? 'novel' : 'folder';
                 const id = parseInt(key.split('-')[1]);
                 if(type === 'novel') {
-                    const n = novels.value.find(x => x.id === id);
-                    if(n) n.folderId = moveTargetId.value;
+                    const n = novels.value.find(x => x.id === id); if(n) n.folderId = moveTargetId.value;
                 } else {
                     const f = folders.value.find(x => x.id === id);
-                    // Prevent moving folder into itself or its children
                     if(f && f.id !== moveTargetId.value) { 
-                         // Check recursive
-                         let invalid = false;
-                         let check = moveTargetId.value;
-                         while(check) {
-                             if(check === f.id) invalid = true;
-                             const p = folders.value.find(x => x.id === check);
-                             check = p ? p.parentId : null;
-                         }
+                         let invalid = false; let check = moveTargetId.value;
+                         while(check) { if(check === f.id) invalid = true; const p = folders.value.find(x => x.id === check); check = p ? p.parentId : null; }
                          if(!invalid) f.parentId = moveTargetId.value;
                     }
                 }
             });
-            closeMoveModal();
-            exitSelectionMode();
-            alert("移动完成");
+            closeMoveModal(); exitSelectionMode(); triggerAlert("移动完成");
         };
 
-        // API Test
-        const testApiConnection = async () => {
-            if(!apiKey.value) return alert("请填写 Key");
+        // --- Fetch Models Logic ---
+        const fetchModels = async () => {
+            if(!apiKey.value) { triggerAlert("请先填写 API Key"); return; }
             isLoading.value = true;
             try {
-                let url, headers, body;
-                const model = apiModel.value || (apiProvider.value === 'zhipu' ? 'glm-4-flash' : 'gpt-3.5-turbo');
+                let baseUrl = '';
                 if(apiProvider.value === 'zhipu') {
-                    url = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-                    headers = {'Content-Type':'application/json','Authorization':`Bearer ${apiKey.value}`};
-                    body = {model: model, messages:[{role:"user",content:"Hello"}]};
+                    // Zhipu doesn't have a strict standard /v1/models listing in the same way, but compatible proxies do.
+                    // We will fallback to common list if fetch fails or for Zhipu default.
+                    baseUrl = 'https://open.bigmodel.cn/api/paas/v4'; 
                 } else {
-                    url = (apiUrl.value || 'https://api.openai.com/v1') + '/chat/completions';
-                    headers = {'Content-Type':'application/json','Authorization':`Bearer ${apiKey.value}`};
-                    body = {model: model, messages:[{role:"user",content:"Hello"}]};
+                    baseUrl = (apiUrl.value || 'https://api.openai.com/v1').replace(/\/+$/, '');
                 }
-                const res = await fetch(url, {method:'POST', headers, body: JSON.stringify(body)});
-                const d = await res.json();
-                if(d.error) throw new Error(d.error.message);
-                alert("连接成功! " + (d.choices[0]?.message?.content || ''));
-            } catch(e) { alert("连接失败: " + e.message); }
+
+                const res = await fetch(`${baseUrl}/models`, {
+                    headers: { 'Authorization': `Bearer ${apiKey.value}` }
+                });
+                
+                if(!res.ok) throw new Error("连接失败: " + res.status);
+                const data = await res.json();
+                
+                if(data.data && Array.isArray(data.data)) {
+                    availableModels.value = data.data.map(m => m.id);
+                    // Try to set a smart default if current model is invalid
+                    if(!apiModel.value || !availableModels.value.includes(apiModel.value)) {
+                         // Prefer vision models
+                         const vision = availableModels.value.find(m => m.includes('4v') || m.includes('vision') || m.includes('4o'));
+                         apiModel.value = vision || availableModels.value[0];
+                    }
+                    triggerAlert(`成功连接！加载了 ${availableModels.value.length} 个模型`);
+                } else {
+                    throw new Error("返回格式无法识别");
+                }
+            } catch(e) {
+                // Fallback for Zhipu if /models isn't supported or fails (Manual List)
+                if(apiProvider.value === 'zhipu') {
+                    availableModels.value = ['glm-4v', 'glm-4-flash', 'glm-4-plus'];
+                    apiModel.value = 'glm-4v';
+                    triggerAlert("已加载智谱默认模型列表");
+                } else {
+                    triggerAlert("无法获取模型列表: " + e.message);
+                }
+            }
             isLoading.value = false;
         };
 
-        // AI Upload
         const handleAiUpload = async(e) => {
             const f = e.target.files[0]; if(!f) return;
-            if(!apiKey.value) { alert("请设置 API Key"); return; }
+            if(!apiKey.value) { triggerAlert("请设置 API Key"); return; }
+            if(!apiModel.value && availableModels.value.length === 0) {
+                 // Try to set default before uploading if not set
+                 if(apiProvider.value === 'zhipu') apiModel.value = 'glm-4v';
+                 else { triggerAlert("请先连接并选择模型"); return; }
+            }
             isLoading.value = true; showFabMenu.value = false;
             const reader = new FileReader();
             reader.readAsDataURL(f);
             reader.onload = async() => {
                 const base64Img = reader.result.split(',')[1];
                 let url, headers, body;
-                const model = apiModel.value || (apiProvider.value === 'zhipu' ? 'glm-4v' : 'gpt-4o');
                 
                 if (apiProvider.value === 'zhipu') {
                     url = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
                     headers = {'Content-Type':'application/json','Authorization':`Bearer ${apiKey.value}`};
                     body = {
-                        model: model,
+                        model: apiModel.value || 'glm-4v',
                         messages: [{role:"user", content:[{type:"text", text:"提取书名,作者,平台(如起点). JSON format:{\"title\":\"\",\"author\":\"\",\"platform\":\"\"}"}, {type:"image_url", image_url:{url:base64Img}}]}]
                     };
                 } else {
                     url = (apiUrl.value || 'https://api.openai.com/v1') + '/chat/completions';
                     headers = {'Content-Type':'application/json','Authorization':`Bearer ${apiKey.value}`};
                     body = {
-                        model: model,
+                        model: apiModel.value,
                         max_tokens: 300,
                         messages: [{role:"user", content:[{type:"text", text:"Extract title, author, platform. JSON only."}, {type:"image_url", image_url:{url:`data:image/jpeg;base64,${base64Img}`}}]}]
                     };
@@ -796,141 +807,99 @@ createApp({
                     const jsonStr = content.substring(content.indexOf('{'), content.lastIndexOf('}')+1);
                     const newNovel = JSON.parse(jsonStr);
                     novels.value.unshift({ id: Date.now(), ...newNovel, folderId: currentFolder.value ? currentFolder.value.id : null, createTime: new Date().toISOString() });
-                } catch(err) { alert("识别失败: " + err.message); }
+                } catch(err) { triggerAlert("识别失败: " + err.message); }
                 isLoading.value = false; e.target.value = '';
             };
         };
 
-        // Gestures
+        // Gestures & Misc
         const handleTouchStart = (e) => touchStartX = e.changedTouches[0].screenX;
         const handleMainTouchEnd = (e) => {
-            if (isSelectionMode.value) return; // Disable swipes in selection mode
+            if (isSelectionMode.value) return; 
             const diff = e.changedTouches[0].screenX - touchStartX;
             if(diff > 80 && currentFolder.value) goBackFolder();
             else if (diff < -80) showSettings.value = true;
         };
         const handleSettingsTouchEnd = (e) => { if(e.changedTouches[0].screenX - touchStartX > 80) showSettings.value = false; };
         const handleGenericSwipeBack = (e, cb) => { if(e.changedTouches[0].screenX - touchStartX > 80) cb(); };
-
-        let lpTimer;
-        const startLongPress = (item, type) => {
-            if(isSelectionMode.value) return;
-            lpTimer = setTimeout(() => { selectedItem.value = item; selectedType.value = type; showActionSheet.value = true; if(navigator.vibrate) navigator.vibrate(50); }, 600);
-        };
-        const cancelLongPress = () => clearTimeout(lpTimer);
+        const startLongPress = (item, type) => { if(isSelectionMode.value) return; setTimeout(() => { selectedItem.value = item; selectedType.value = type; showActionSheet.value = true; if(navigator.vibrate) navigator.vibrate(50); }, 600); };
+        const cancelLongPress = () => {}; 
         const closeActionSheet = () => showActionSheet.value = false;
-        
         const deleteItem = () => {
-            if(!confirm("确定删除？")) return;
-            const id = selectedItem.value.id;
-            if(selectedType.value === 'novel') novels.value = novels.value.filter(n => n.id !== id);
-            else {
-                const delRec = (fid) => {
-                    novels.value = novels.value.filter(n => n.folderId !== fid);
-                    folders.value.filter(f => f.parentId === fid).forEach(c => delRec(c.id));
-                    folders.value = folders.value.filter(f => f.id !== fid);
-                };
-                delRec(id);
-            }
-            showActionSheet.value = false;
+            triggerConfirm("确定要删除吗？", () => {
+                const id = selectedItem.value.id;
+                if(selectedType.value === 'novel') novels.value = novels.value.filter(n => n.id !== id);
+                else {
+                    const delRec = (fid) => {
+                        novels.value = novels.value.filter(n => n.folderId !== fid);
+                        folders.value.filter(f => f.parentId === fid).forEach(c => delRec(c.id));
+                        folders.value = folders.value.filter(f => f.id !== fid);
+                    };
+                    delRec(id);
+                }
+                showActionSheet.value = false;
+            });
         };
 
-        // --- Cropper (High Res Logic) ---
         const triggerBgUpload = () => document.getElementById('bgInput').click();
         const handleBgSelect = (e) => {
             const f = e.target.files[0]; if(!f) return;
-            const r = new FileReader();
-            r.onload = (ev) => { tempBgSrc.value = ev.target.result; showCropper.value = true; };
-            r.readAsDataURL(f); e.target.value = '';
+            const r = new FileReader(); r.onload = (ev) => { tempBgSrc.value = ev.target.result; showCropper.value = true; }; r.readAsDataURL(f); e.target.value = '';
         };
         const initCropBox = () => {
             const img = cropImg.value; if(!img) return;
-            const imgRect = img.getBoundingClientRect();
+            const imgRect = img.getBoundingClientRect(); const areaRect = cropArea.value.getBoundingClientRect();
             const screenRatio = window.innerWidth / window.innerHeight;
-            let w = imgRect.width * 0.8;
-            let h = w / screenRatio;
+            let w = imgRect.width * 0.8; let h = w / screenRatio;
             if (h > imgRect.height * 0.9) { h = imgRect.height * 0.9; w = h * screenRatio; }
-            const areaRect = cropArea.value.getBoundingClientRect();
             cropBox.w = w; cropBox.h = h;
             cropBox.x = (imgRect.left - areaRect.left) + (imgRect.width - w)/2;
             cropBox.y = (imgRect.top - areaRect.top) + (imgRect.height - h)/2;
         };
         const cropBoxStyle = computed(() => ({ left: cropBox.x + 'px', top: cropBox.y + 'px', width: cropBox.w + 'px', height: cropBox.h + 'px' }));
         const cropTouchStart = (e) => {
-            cropStartTouches = [...e.touches].map(t => ({x:t.pageX, y:t.pageY}));
-            cropStartBox = { ...cropBox };
+            cropStartTouches = [...e.touches].map(t => ({x:t.pageX, y:t.pageY})); cropStartBox = { ...cropBox };
             if (e.touches.length === 2) cropStartDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
         };
         const cropTouchMove = (e) => {
-            if (!showCropper.value) return;
-            e.preventDefault();
-            const imgRect = cropImg.value.getBoundingClientRect();
-            const areaRect = cropArea.value.getBoundingClientRect();
-            const minX = imgRect.left - areaRect.left; const maxX = minX + imgRect.width;
-            const minY = imgRect.top - areaRect.top; const maxY = minY + imgRect.height;
-
+            if (!showCropper.value) return; e.preventDefault();
+            const imgRect = cropImg.value.getBoundingClientRect(); const areaRect = cropArea.value.getBoundingClientRect();
+            const minX = imgRect.left - areaRect.left; const maxX = minX + imgRect.width; const minY = imgRect.top - areaRect.top; const maxY = minY + imgRect.height;
             if (e.touches.length === 1) {
-                const dx = e.touches[0].pageX - cropStartTouches[0].x;
-                const dy = e.touches[0].pageY - cropStartTouches[0].y;
-                let nx = cropStartBox.x + dx; let ny = cropStartBox.y + dy;
-                if (nx < minX) nx = minX; if (ny < minY) ny = minY;
-                if (nx + cropBox.w > maxX) nx = maxX - cropBox.w; if (ny + cropBox.h > maxY) ny = maxY - cropBox.h;
+                let nx = cropStartBox.x + (e.touches[0].pageX - cropStartTouches[0].x); let ny = cropStartBox.y + (e.touches[0].pageY - cropStartTouches[0].y);
+                if (nx < minX) nx = minX; if (ny < minY) ny = minY; if (nx + cropBox.w > maxX) nx = maxX - cropBox.w; if (ny + cropBox.h > maxY) ny = maxY - cropBox.h;
                 cropBox.x = nx; cropBox.y = ny;
             } else if (e.touches.length === 2) {
-                const curDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
-                const scale = curDist / cropStartDist;
+                const scale = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY) / cropStartDist;
                 let nw = cropStartBox.w * scale; let nh = nw / (window.innerWidth/window.innerHeight);
                 if (nw > 50 && nw < imgRect.width && nh < imgRect.height) {
-                    const dx = (nw - cropStartBox.w) / 2; const dy = (nh - cropStartBox.h) / 2;
-                    let nx = cropStartBox.x - dx; let ny = cropStartBox.y - dy;
-                    if(nx >= minX && ny >= minY && nx+nw <= maxX && ny+nh <= maxY) {
-                        cropBox.w = nw; cropBox.h = nh; cropBox.x = nx; cropBox.y = ny;
-                    }
+                    let nx = cropStartBox.x - (nw - cropStartBox.w) / 2; let ny = cropStartBox.y - (nh - cropStartBox.h) / 2;
+                    if(nx >= minX && ny >= minY && nx+nw <= maxX && ny+nh <= maxY) { cropBox.w = nw; cropBox.h = nh; cropBox.x = nx; cropBox.y = ny; }
                 }
             }
         };
         const confirmCrop = () => {
-            const cvs = document.createElement('canvas');
-            const ctx = cvs.getContext('2d');
-            // High Resolution Export (DPR 2x or 3x)
-            const dpr = window.devicePixelRatio || 2; 
-            cvs.width = window.innerWidth * dpr; 
-            cvs.height = window.innerHeight * dpr;
-
-            const img = cropImg.value;
-            const imgRect = img.getBoundingClientRect();
-            const areaRect = cropArea.value.getBoundingClientRect();
-            
-            const boxRelX = cropBox.x - (imgRect.left - areaRect.left);
-            const boxRelY = cropBox.y - (imgRect.top - areaRect.top);
-            
-            const scaleX = img.naturalWidth / imgRect.width;
-            const scaleY = img.naturalHeight / imgRect.height;
-
+            const cvs = document.createElement('canvas'); const ctx = cvs.getContext('2d');
+            const dpr = window.devicePixelRatio || 2; cvs.width = window.innerWidth * dpr; cvs.height = window.innerHeight * dpr;
+            const img = cropImg.value; const imgRect = img.getBoundingClientRect(); const areaRect = cropArea.value.getBoundingClientRect();
+            const boxRelX = cropBox.x - (imgRect.left - areaRect.left); const boxRelY = cropBox.y - (imgRect.top - areaRect.top);
+            const scaleX = img.naturalWidth / imgRect.width; const scaleY = img.naturalHeight / imgRect.height;
             ctx.drawImage(img, boxRelX * scaleX, boxRelY * scaleY, cropBox.w * scaleX, cropBox.h * scaleY, 0, 0, cvs.width, cvs.height);
-            // Use PNG for high quality
-            bgImage.value = cvs.toDataURL('image/png');
-            showCropper.value = false;
+            bgImage.value = cvs.toDataURL('image/png'); showCropper.value = false;
         };
 
-        const exportData = () => {
-            const b = new Blob([JSON.stringify({novels:novels.value, folders:folders.value, config:{apiKey:apiKey.value,bgColor:bgColor.value,apiProvider:apiProvider.value,apiUrl:apiUrl.value,apiModel:apiModel.value}})], {type:'application/json'});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'backup.json'; a.click();
-        };
+        const exportData = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify({novels:novels.value, folders:folders.value, config:{apiKey:apiKey.value,bgColor:bgColor.value,apiProvider:apiProvider.value,apiUrl:apiUrl.value,apiModel:apiModel.value}})], {type:'application/json'})); a.download = 'backup.json'; a.click(); };
         const triggerImport = () => document.getElementById('importInput').click();
         const handleImportData = (e) => {
             const f = e.target.files[0]; if(!f) return;
-            const r = new FileReader();
-            r.onload = (ev) => {
-                const d = JSON.parse(ev.target.result);
-                novels.value = d.novels||[]; folders.value = d.folders||[];
+            const r = new FileReader(); r.onload = (ev) => {
+                const d = JSON.parse(ev.target.result); novels.value = d.novels||[]; folders.value = d.folders||[];
                 if(d.config) { apiKey.value=d.config.apiKey; bgColor.value=d.config.bgColor; apiProvider.value=d.config.apiProvider||'zhipu'; apiUrl.value=d.config.apiUrl||''; apiModel.value=d.config.apiModel||''; }
-                alert('导入成功');
-            };
-            r.readAsText(f);
+                triggerAlert('导入成功');
+            }; r.readAsText(f);
         };
-        const clearData = () => { if(confirm("确定要清空所有数据吗？")) { localStorage.clear(); location.reload(); } };
-        const removeBg = () => { bgImage.value = ''; };
+        const confirmClearData = () => triggerConfirm("确定要清空所有数据吗？此操作无法撤销。", () => { localStorage.clear(); location.reload(); });
+        const removeBg = () => bgImage.value = '';
         const formatDate = (iso) => iso ? iso.split('T')[0] : '';
         const openFilteredView = (title, list) => { filterTitle.value = title; filteredList.value = list; showFilteredView.value = true; showSettings.value = false; };
         const closeFilteredView = () => showFilteredView.value = false;
@@ -942,20 +911,20 @@ createApp({
         };
 
         return {
-            novels, folders, apiKey, bgColor, bgImage, apiProvider, apiUrl, apiModel, searchQuery,
+            novels, folders, apiKey, bgColor, bgImage, apiProvider, apiUrl, apiModel, availableModels, searchQuery,
             showSettings, showDetail, showFilteredView, showFabMenu, showActionSheet, showCropper, isLoading,
-            showAddModal, addFormMode, addFormType, addForm, 
+            showAddModal, addFormMode, addFormType, addForm, sysModal,
             isSelectionMode, selectedItems, showMoveModal, moveTargetId, movePath, moveCurrentSubfolders,
-            currentFolder, currentItems, currentFoldersList, currentNovelsList, activeNovel, filteredList, filterTitle,
+            currentFolder, currentItems, currentFoldersList, currentNovelsList, activeNovel, filteredList, filterTitle, novelsByPlatform,
             selectedItem, selectedType, tempBgSrc, cropImg, cropArea, cropBox, cropBoxStyle,
             openDetail, closeDetail, formatDate, enterFolder, openFilteredView, closeFilteredView, performSearch,
             openAddModal, closeAddModal, confirmAddOrEdit, openEditModalFromSheet, openRenameFromSheet,
             enterSelectionModeFromSheet, exitSelectionMode, isSelected, handleCardClick,
             openMoveModal, closeMoveModal, enterMoveFolder, moveNavTo, confirmMove,
             handleTouchStart, handleMainTouchEnd, handleSettingsTouchEnd, handleGenericSwipeBack,
-            startLongPress, cancelLongPress, closeActionSheet, deleteItem,
-            triggerBgUpload, handleBgSelect, removeBg, initCropBox, cropTouchStart, cropTouchMove, confirmCrop, 
-            exportData, triggerImport, handleImportData, clearData, handleAiUpload, testApiConnection
+            closeSysModal, sysModalConfirm, confirmClearData,
+            closeActionSheet, deleteItem, triggerBgUpload, handleBgSelect, removeBg, initCropBox, cropTouchStart, cropTouchMove, confirmCrop, 
+            exportData, triggerImport, handleImportData, handleAiUpload, fetchModels
         };
     }
 }).mount('#app');

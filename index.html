@@ -89,7 +89,6 @@
                    placeholder="搜索..." @keyup.enter="performSearch">
             <button v-if="searchQuery" class="btn" style="margin-top:0; margin-bottom:20px;" @click="performSearch">搜索</button>
 
-            <!-- 藏书总览 -->
             <h3 class="section-title">藏书总览</h3>
             <div v-if="Object.keys(novelsByPlatform).length === 0" style="opacity:0.5; font-size:12px; margin-bottom:10px;">暂无数据</div>
             <div v-for="(list, platform) in novelsByPlatform" :key="platform" 
@@ -113,24 +112,27 @@
             </div>
             
             <h3 class="section-title">AI 设置</h3>
-            <!-- 自定义 Select 触发器 -->
+            <!-- 供应商选择 -->
             <div class="input-glass select-trigger" @click="showProviderPicker = true">
                  <span>{{ apiProvider === 'zhipu' ? '智谱 AI' : 'OpenAI (及公益站)' }}</span>
                  <i class="ri-arrow-down-s-line"></i>
             </div>
             
-            <input v-if="apiProvider === 'openai'" v-model="apiUrl" class="input-glass" placeholder="API URL (例如 https://api.openai.com/v1)">
             <input type="password" v-model="apiKey" class="input-glass" placeholder="API Key">
-            
-            <button class="btn" @click="fetchModels" style="margin-top:5px; margin-bottom:12px;">
-                <i class="ri-link" style="margin-right:5px;"></i> 链接 / 刷新模型
-            </button>
 
-            <!-- 模型选择触发器 -->
-            <div class="input-glass select-trigger" @click="openModelPicker">
-                <span v-if="apiModel">{{ apiModel }}</span>
-                <span v-else style="opacity:0.5;">点击选择模型...</span>
-                <i class="ri-arrow-down-s-line"></i>
+            <!-- OpenAI 专属设置 (URL 和 模型选择) -->
+            <div v-if="apiProvider === 'openai'">
+                <input v-model="apiUrl" class="input-glass" placeholder="API URL (例如 https://api.openai.com/v1)">
+                
+                <button class="btn" @click="fetchModels" style="margin-top:5px; margin-bottom:12px;">
+                    <i class="ri-link" style="margin-right:5px;"></i> 链接 / 刷新模型
+                </button>
+
+                <div class="input-glass select-trigger" @click="openModelPicker">
+                    <span v-if="apiModel">{{ apiModel }}</span>
+                    <span v-else style="opacity:0.5;">点击选择模型...</span>
+                    <i class="ri-arrow-down-s-line"></i>
+                </div>
             </div>
             
             <button class="btn" @click="openConfirm('确定清空所有数据？此操作无法撤销。', clearData)" style="margin-top:40px; margin-bottom:50px; opacity:0.7;">清空所有数据</button>
@@ -174,7 +176,6 @@
                 <label>创建日期</label>
                 <div style="font-size:16px;">{{ formatDate(activeNovel.createTime) }}</div>
             </div>
-            <!-- 补回阅读时间 -->
             <div class="info-block">
                 <label>阅读日期</label>
                 <input type="date" v-model="activeNovel.readDate" class="date-input">
@@ -233,7 +234,7 @@
         </div>
     </div>
 
-    <!-- 模型选择列表弹窗 (替代 select) -->
+    <!-- 模型选择列表弹窗 -->
     <div class="modal-mask" :class="{show: showModelPicker}" @click.self="showModelPicker = false">
         <div class="modal-card" style="height: 60vh;">
             <h3 class="modal-title">选择模型</h3>
@@ -251,11 +252,11 @@
         </div>
     </div>
     
-    <!-- 供应商选择 (简单版) -->
+    <!-- 供应商选择 -->
      <div class="modal-mask" :class="{show: showProviderPicker}" @click.self="showProviderPicker = false">
         <div class="modal-card">
             <h3 class="modal-title">选择 API 供应商</h3>
-            <button class="btn" @click="apiProvider='zhipu'; showProviderPicker=false">智谱 AI</button>
+            <button class="btn" @click="apiProvider='zhipu'; showProviderPicker=false">智谱 AI (自动使用 GLM-4V)</button>
             <button class="btn" @click="apiProvider='openai'; showProviderPicker=false">OpenAI (及公益站)</button>
         </div>
     </div>
@@ -310,7 +311,7 @@
         </div>
     </div>
 
-    <!-- 美化的加载动画 -->
+    <!-- 加载动画 -->
     <div class="loading-overlay" v-if="isLoading">
         <div class="loading-box">
             <i class="ri-loader-4-line ri-spin"></i>

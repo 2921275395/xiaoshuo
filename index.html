@@ -115,7 +115,7 @@
         .fab-container.open .fab-item:nth-child(2) { transform: translate(-45px, -45px); opacity: 1; pointer-events: auto; }
         .fab-container.open .fab-item:nth-child(3) { transform: translateX(-60px); opacity: 1; pointer-events: auto; }
 
-        /* Full View (Detail, Filtered) */
+        /* Full View */
         .full-view {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(200, 220, 255, 0.15);
@@ -142,6 +142,8 @@
             color: white; box-sizing: border-box; outline: none;
             font-size: 14px; margin-bottom: 10px;
         }
+        select.input-glass { -webkit-appearance: none; }
+        
         .stat-row {
             padding: 15px; border-radius: 12px; background: rgba(255,255,255,0.1);
             margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
@@ -161,7 +163,7 @@
         }
         .modal-mask.show .modal-card { transform: scale(1); }
 
-        /* Action Sheet & Mask */
+        /* Action Sheet */
         .action-mask {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.3); z-index: 500;
@@ -177,7 +179,7 @@
         }
         .action-sheet.show { transform: translateY(0); }
 
-        /* Cropper - Selection Box Style */
+        /* Cropper */
         .cropper-modal {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #222; z-index: 600;
@@ -186,31 +188,27 @@
         .cropper-area {
             flex: 1; position: relative; overflow: hidden;
             display: flex; align-items: center; justify-content: center;
-            touch-action: none;
+            touch-action: none; /* 关键：禁止浏览器默认缩放滚动 */
         }
-        /* 图片本身 */
         .crop-target-img {
             max-width: 95%; max-height: 95%;
-            display: block;
-            pointer-events: none; /* 图片不响应，只响应 box */
+            display: block; pointer-events: none;
         }
-        /* 选取框 */
         .crop-box {
             position: absolute;
             border: 2px solid #fff;
-            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5); /* 遮罩效果 */
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
             touch-action: none;
             box-sizing: border-box;
         }
-        /* 选取框四角装饰 */
         .crop-corner {
-            position: absolute; width: 10px; height: 10px;
-            border: 2px solid white;
+            position: absolute; width: 15px; height: 15px;
+            border: 3px solid white;
         }
-        .tl { top: -2px; left: -2px; border-right: none; border-bottom: none; }
-        .tr { top: -2px; right: -2px; border-left: none; border-bottom: none; }
-        .bl { bottom: -2px; left: -2px; border-right: none; border-top: none; }
-        .br { bottom: -2px; right: -2px; border-left: none; border-top: none; }
+        .tl { top: -3px; left: -3px; border-right: none; border-bottom: none; }
+        .tr { top: -3px; right: -3px; border-left: none; border-bottom: none; }
+        .bl { bottom: -3px; left: -3px; border-right: none; border-top: none; }
+        .br { bottom: -3px; right: -3px; border-left: none; border-top: none; }
 
         .btn {
             padding: 10px 0; width: 100%; border-radius: 12px; border: none;
@@ -318,8 +316,17 @@
                  <input type="color" v-model="bgColor" style="width:50px; height:40px; border:none; background:none;">
                  <button class="btn" style="margin-top:0; flex:1;" @click="triggerBgUpload">换背景图</button>
             </div>
+            <button v-if="bgImage" class="btn btn-danger" @click="removeBg">删除背景，恢复纯色</button>
             
-            <input type="password" v-model="apiKey" class="input-glass" placeholder="智谱 API Key" style="margin-top:20px;">
+            <h3 style="font-size:14px; opacity:0.7; margin-top:30px;">AI 识别设置</h3>
+            <select v-model="aiProvider" class="input-glass" style="margin-bottom:10px;">
+                <option value="zhipu">智谱 AI (GLM-4V)</option>
+                <option value="openai">OpenAI (GPT-4o)</option>
+            </select>
+            
+            <input v-if="aiProvider === 'zhipu'" type="password" v-model="zhipuKey" class="input-glass" placeholder="请输入智谱 API Key">
+            <input v-if="aiProvider === 'openai'" type="password" v-model="openaiKey" class="input-glass" placeholder="请输入 OpenAI API Key">
+            
             <button class="btn btn-danger" @click="clearData" style="margin-top:40px; margin-bottom:50px;">清空所有</button>
         </div>
     </div>
@@ -343,7 +350,7 @@
         </div>
     </div>
 
-    <!-- 小说详情页 (支持右滑返回) -->
+    <!-- 小说详情页 -->
     <div class="full-view" :class="{show: showDetail}" v-if="activeNovel"
          @touchstart="handleTouchStart" @touchend="handleGenericSwipeBack($event, closeDetail)">
         <div class="header" style="padding:20px;">
@@ -402,10 +409,11 @@
         <button class="btn" style="background:transparent; color:white; opacity:0.6;" @click="closeActionSheet">取消</button>
     </div>
 
-    <!-- 裁剪 (选取框模式) -->
+    <!-- 裁剪 (选取框模式 - 修复卡顿) -->
     <div class="cropper-modal" v-if="showCropper">
         <div class="cropper-area" ref="cropArea"
-             @touchstart="cropTouchStart" @touchmove="cropTouchMove">
+             @touchstart.prevent="cropTouchStart" 
+             @touchmove.prevent="cropTouchMove">
             <img :src="tempBgSrc" class="crop-target-img" ref="cropImg" @load="initCropBox">
             
             <!-- 选取框 -->
@@ -433,13 +441,15 @@
 </div>
 
 <script>
-const { createApp, ref, computed, onMounted, watch, reactive, nextTick } = Vue;
+const { createApp, ref, computed, onMounted, watch, reactive } = Vue;
 
 createApp({
     setup() {
         const novels = ref([]);
         const folders = ref([]);
-        const apiKey = ref('');
+        const aiProvider = ref('zhipu');
+        const zhipuKey = ref('');
+        const openaiKey = ref('');
         const bgColor = ref('#8EC5FC');
         const bgImage = ref('');
         
@@ -465,9 +475,14 @@ createApp({
         const tempBgSrc = ref('');
         const cropImg = ref(null);
         const cropArea = ref(null);
-        const cropBox = reactive({ x: 0, y: 0, w: 0, h: 0 }); // Relative to image parent container, but we need mapping
-        let lastDist = 0;
-        let touchStartX = 0;
+        const cropBox = reactive({ x: 0, y: 0, w: 0, h: 0 });
+        
+        // Touch tracking variables
+        let startX = 0, startY = 0;
+        let startBoxX = 0, startBoxY = 0;
+        let startDist = 0;
+        let startBoxW = 0, startBoxH = 0;
+        let touchMode = 'none'; // 'drag', 'scale'
 
         onMounted(() => {
             const n = localStorage.getItem('rf_novels_v3');
@@ -477,7 +492,12 @@ createApp({
             if(f) folders.value = JSON.parse(f);
             if(c) {
                 const cfg = JSON.parse(c);
-                apiKey.value = cfg.apiKey; bgColor.value = cfg.bgColor; bgImage.value = cfg.bgImage;
+                if(cfg.apiKey) zhipuKey.value = cfg.apiKey; // 兼容旧版
+                if(cfg.zhipuKey) zhipuKey.value = cfg.zhipuKey;
+                if(cfg.openaiKey) openaiKey.value = cfg.openaiKey;
+                if(cfg.aiProvider) aiProvider.value = cfg.aiProvider;
+                bgColor.value = cfg.bgColor; 
+                bgImage.value = cfg.bgImage;
             }
             updateBg();
         });
@@ -487,9 +507,13 @@ createApp({
             localStorage.setItem('rf_folders_v3', JSON.stringify(folders.value));
         }, { deep: true });
 
-        watch([apiKey, bgColor, bgImage], () => {
+        watch([zhipuKey, openaiKey, aiProvider, bgColor, bgImage], () => {
             localStorage.setItem('rf_config_v3', JSON.stringify({
-                apiKey: apiKey.value, bgColor: bgColor.value, bgImage: bgImage.value
+                zhipuKey: zhipuKey.value, 
+                openaiKey: openaiKey.value, 
+                aiProvider: aiProvider.value,
+                bgColor: bgColor.value, 
+                bgImage: bgImage.value
             }));
             updateBg();
         });
@@ -556,19 +580,55 @@ createApp({
 
         const handleAiUpload = async(e) => {
             const f = e.target.files[0]; if(!f) return;
-            if(!apiKey.value) { alert("请设置 API Key"); return; }
+            const apiKey = aiProvider.value === 'zhipu' ? zhipuKey.value : openaiKey.value;
+            if(!apiKey) { alert("请先在设置中配置 API Key"); return; }
+            
             isLoading.value = true; showFabMenu.value = false;
             const reader = new FileReader();
             reader.readAsDataURL(f);
             reader.onload = async() => {
                 try {
-                    const res = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
-                        method: 'POST', headers: {'Content-Type':'application/json','Authorization':`Bearer ${apiKey.value}`},
-                        body: JSON.stringify({ model: "glm-4v", messages: [{role:"user", content:[{type:"text", text:"提取: title, author, platform. JSON format only."}, {type:"image_url", image_url:{url:reader.result.split(',')[1]}}]}]})
-                    });
+                    const base64Img = reader.result.split(',')[1];
+                    let payload, url, headers;
+
+                    if (aiProvider.value === 'zhipu') {
+                        url = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+                        headers = {'Content-Type':'application/json','Authorization':`Bearer ${apiKey}`};
+                        payload = {
+                            model: "glm-4v",
+                            messages: [{role:"user", content:[
+                                {type:"text", text:"提取书名、作者、平台。返回JSON格式:{title, author, platform}"},
+                                {type:"image_url", image_url:{url:base64Img}}
+                            ]}]
+                        };
+                    } else {
+                        // OpenAI
+                        url = 'https://api.openai.com/v1/chat/completions';
+                        headers = {'Content-Type':'application/json','Authorization':`Bearer ${apiKey}`};
+                        payload = {
+                            model: "gpt-4o",
+                            messages: [{role:"user", content:[
+                                {type:"text", text:"Extract book title, author, and platform. Return raw JSON: {\"title\": \"...\", \"author\": \"...\", \"platform\": \"...\"}"},
+                                {type:"image_url", image_url:{url:`data:image/jpeg;base64,${base64Img}`}}
+                            ]}],
+                            max_tokens: 300
+                        };
+                    }
+
+                    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
                     const d = await res.json();
-                    addNovel(JSON.parse(d.choices[0].message.content.replace(/```json|```/g,'').trim()));
-                } catch(err) { alert("识别失败"); }
+                    
+                    if(d.error) throw new Error(d.error.message);
+                    
+                    let txt = d.choices[0].message.content.replace(/```json|```/g,'').trim();
+                    // 尝试清理可能的前缀
+                    const firstBrace = txt.indexOf('{');
+                    const lastBrace = txt.lastIndexOf('}');
+                    if(firstBrace !== -1 && lastBrace !== -1) {
+                         txt = txt.substring(firstBrace, lastBrace + 1);
+                    }
+                    addNovel(JSON.parse(txt));
+                } catch(err) { alert("识别失败: " + err.message); }
                 isLoading.value = false; e.target.value = '';
             };
         };
@@ -601,16 +661,16 @@ createApp({
         };
 
         // Swipe & Touch
-        const handleTouchStart = (e) => touchStartX = e.changedTouches[0].screenX;
+        let mainStartX = 0;
+        const handleTouchStart = (e) => mainStartX = e.changedTouches[0].screenX;
         const handleMainTouchEnd = (e) => {
-            const diff = e.changedTouches[0].screenX - touchStartX;
+            const diff = e.changedTouches[0].screenX - mainStartX;
             if(diff > 80 && currentFolder.value) goBackFolder();
             else if (diff < -80) showSettings.value = true;
         };
-        const handleSettingsTouchEnd = (e) => { if(e.changedTouches[0].screenX - touchStartX > 80) showSettings.value = false; };
-        // 通用右滑返回处理器
+        const handleSettingsTouchEnd = (e) => { if(e.changedTouches[0].screenX - mainStartX > 80) showSettings.value = false; };
         const handleGenericSwipeBack = (e, callback) => {
-            if(e.changedTouches[0].screenX - touchStartX > 80) callback();
+            if(e.changedTouches[0].screenX - mainStartX > 80) callback();
         };
 
         let lpTimer;
@@ -623,7 +683,8 @@ createApp({
         const cancelLongPress = () => clearTimeout(lpTimer);
         const closeActionSheet = () => showActionSheet.value = false;
 
-        // --- New Cropper Logic (Selection Box) ---
+        // --- Background & Cropper ---
+        const removeBg = () => { bgImage.value = ''; alert("背景已移除"); };
         const triggerBgUpload = () => document.getElementById('bgInput').click();
         const handleBgSelect = (e) => {
             const f = e.target.files[0]; if(!f) return;
@@ -633,104 +694,101 @@ createApp({
         };
 
         const initCropBox = () => {
-            // 初始化选取框，使其保持屏幕比例，并居中
-            const img = cropImg.value;
-            if(!img) return;
+            const img = cropImg.value; if(!img) return;
             const imgRect = img.getBoundingClientRect();
             const areaRect = cropArea.value.getBoundingClientRect();
+            const ratio = window.innerWidth / window.innerHeight;
             
-            // 图片相对于 area 的偏移
+            let w = imgRect.width * 0.8;
+            let h = w / ratio;
+            if (h > imgRect.height * 0.8) { h = imgRect.height * 0.8; w = h * ratio; }
+
             const offsetX = imgRect.left - areaRect.left;
             const offsetY = imgRect.top - areaRect.top;
             
-            // 目标比例 (屏幕比例)
-            const screenRatio = window.innerWidth / window.innerHeight;
-            
-            // 计算初始框大小 (尽量填满图片)
-            let w = imgRect.width * 0.8;
-            let h = w / screenRatio;
-            
-            if (h > imgRect.height * 0.8) {
-                h = imgRect.height * 0.8;
-                w = h * screenRatio;
-            }
-
-            cropBox.w = w;
-            cropBox.h = h;
+            cropBox.w = w; cropBox.h = h;
             cropBox.x = offsetX + (imgRect.width - w) / 2;
             cropBox.y = offsetY + (imgRect.height - h) / 2;
         };
 
         const cropBoxStyle = computed(() => ({
-            left: cropBox.x + 'px',
-            top: cropBox.y + 'px',
-            width: cropBox.w + 'px',
-            height: cropBox.h + 'px'
+            left: cropBox.x + 'px', top: cropBox.y + 'px', width: cropBox.w + 'px', height: cropBox.h + 'px'
         }));
 
+        // 核心修复：更健壮的触摸逻辑
         const cropTouchStart = (e) => {
-            if(e.touches.length === 2) lastDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+            const touches = e.touches;
+            if (touches.length === 1) {
+                touchMode = 'drag';
+                startX = touches[0].clientX;
+                startY = touches[0].clientY;
+                startBoxX = cropBox.x;
+                startBoxY = cropBox.y;
+            } else if (touches.length === 2) {
+                touchMode = 'scale';
+                startDist = Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY);
+                startBoxW = cropBox.w;
+                startBoxH = cropBox.h;
+                startBoxX = cropBox.x;
+                startBoxY = cropBox.y;
+            }
         };
 
         const cropTouchMove = (e) => {
-            e.preventDefault();
+            // .prevent modifier in HTML handles preventDefault
             const imgRect = cropImg.value.getBoundingClientRect();
             const areaRect = cropArea.value.getBoundingClientRect();
-            // 图片边界相对于 area
+            // Bounds relative to area
             const minX = imgRect.left - areaRect.left;
             const maxX = minX + imgRect.width;
             const minY = imgRect.top - areaRect.top;
             const maxY = minY + imgRect.height;
 
-            if(e.touches.length === 1) {
-                // 拖动 (移动框)
-                let nx = cropBox.x + e.changedTouches[0].movementX;
-                let ny = cropBox.y + e.changedTouches[0].movementY;
-                
-                // 边界限制
-                if(nx < minX) nx = minX;
-                if(ny < minY) ny = minY;
-                if(nx + cropBox.w > maxX) nx = maxX - cropBox.w;
-                if(ny + cropBox.h > maxY) ny = maxY - cropBox.h;
+            if (touchMode === 'drag' && e.touches.length === 1) {
+                const dx = e.touches[0].clientX - startX;
+                const dy = e.touches[0].clientY - startY;
+                let nx = startBoxX + dx;
+                let ny = startBoxY + dy;
+
+                // Constraint
+                if (nx < minX) nx = minX;
+                if (ny < minY) ny = minY;
+                if (nx + cropBox.w > maxX) nx = maxX - cropBox.w;
+                if (ny + cropBox.h > maxY) ny = maxY - cropBox.h;
 
                 cropBox.x = nx;
                 cropBox.y = ny;
-            } else if (e.touches.length === 2) {
-                // 缩放 (改变框大小)
-                const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
-                const delta = dist - lastDist;
-                
+
+            } else if (touchMode === 'scale' && e.touches.length === 2) {
+                const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                const scale = dist / startDist;
                 const ratio = window.innerWidth / window.innerHeight;
-                let nw = cropBox.w + delta;
+                
+                let nw = startBoxW * scale;
                 let nh = nw / ratio;
 
-                // 简单的中心缩放逻辑
-                // 检查大小限制 (最小 50px)
-                if(nw > 50 && nw < imgRect.width && nh < imgRect.height) {
-                    // 重新计算 x, y 以保持中心不动
-                    const dx = (nw - cropBox.w) / 2;
-                    const dy = (nh - cropBox.h) / 2;
-                    
-                    let nx = cropBox.x - dx;
-                    let ny = cropBox.y - dy;
+                // Min size check & Max size check
+                if (nw > 50 && nw <= imgRect.width && nh <= imgRect.height) {
+                    // Center scaling
+                    const dx = (nw - startBoxW) / 2;
+                    const dy = (nh - startBoxH) / 2;
+                    let nx = startBoxX - dx;
+                    let ny = startBoxY - dy;
 
-                    // 检查边界，如果出界则不缩放或平移回界内 (这里简单处理：出界就不缩放)
-                    if(nx >= minX && ny >= minY && nx+nw <= maxX && ny+nh <= maxY) {
+                    // Boundary checks for scaling
+                    if (nx >= minX && ny >= minY && nx + nw <= maxX && ny + nh <= maxY) {
                         cropBox.w = nw;
                         cropBox.h = nh;
                         cropBox.x = nx;
                         cropBox.y = ny;
                     }
                 }
-                lastDist = dist;
             }
         };
 
         const confirmCrop = () => {
             const cvs = document.createElement('canvas');
             const ctx = cvs.getContext('2d');
-            
-            // 最终图片大小 = 屏幕大小
             cvs.width = window.innerWidth;
             cvs.height = window.innerHeight;
 
@@ -738,29 +796,19 @@ createApp({
             const imgRect = img.getBoundingClientRect();
             const areaRect = cropArea.value.getBoundingClientRect();
 
-            // 计算 Box 相对于 Image 的位置和比例
-            // box.x 是相对于 area 的，imgRect.left 也是相对于 area 的 (如果我们用 getBoundingClientRect - area)
-            // 准确计算：
-            // Box 相对 Image 左上角的坐标:
             const boxRelX = cropBox.x - (imgRect.left - areaRect.left);
             const boxRelY = cropBox.y - (imgRect.top - areaRect.top);
             
-            // 比例因子：Natural / Rendered
             const scaleX = img.naturalWidth / imgRect.width;
             const scaleY = img.naturalHeight / imgRect.height;
 
-            const sourceX = boxRelX * scaleX;
-            const sourceY = boxRelY * scaleY;
-            const sourceW = cropBox.w * scaleX;
-            const sourceH = cropBox.h * scaleY;
-
-            ctx.drawImage(img, sourceX, sourceY, sourceW, sourceH, 0, 0, cvs.width, cvs.height);
+            ctx.drawImage(img, boxRelX * scaleX, boxRelY * scaleY, cropBox.w * scaleX, cropBox.h * scaleY, 0, 0, cvs.width, cvs.height);
             bgImage.value = cvs.toDataURL('image/jpeg', 0.8);
             showCropper.value = false;
         };
 
         const exportData = () => {
-            const b = new Blob([JSON.stringify({novels:novels.value, folders:folders.value, config:{apiKey:apiKey.value,bgColor:bgColor.value}})], {type:'application/json'});
+            const b = new Blob([JSON.stringify({novels:novels.value, folders:folders.value, config:{zhipuKey:zhipuKey.value, openaiKey:openaiKey.value, aiProvider:aiProvider.value, bgColor:bgColor.value}})], {type:'application/json'});
             const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'backup.json'; a.click();
         };
         const triggerImport = () => document.getElementById('importInput').click();
@@ -770,7 +818,12 @@ createApp({
             r.onload = (ev) => {
                 const d = JSON.parse(ev.target.result);
                 novels.value = d.novels||[]; folders.value = d.folders||[];
-                if(d.config) { apiKey.value=d.config.apiKey; bgColor.value=d.config.bgColor; }
+                if(d.config) { 
+                    zhipuKey.value=d.config.zhipuKey||d.config.apiKey||''; 
+                    openaiKey.value=d.config.openaiKey||'';
+                    aiProvider.value=d.config.aiProvider||'zhipu';
+                    bgColor.value=d.config.bgColor; 
+                }
                 alert('导入成功');
             };
             r.readAsText(f);
@@ -778,14 +831,14 @@ createApp({
         const clearData = () => { if(confirm("清空？")) { localStorage.clear(); location.reload(); } };
 
         return {
-            novels, folders, apiKey, bgColor, bgImage, searchQuery,
+            novels, folders, aiProvider, zhipuKey, openaiKey, bgColor, bgImage, searchQuery,
             showSettings, showDetail, showFilteredView, showFabMenu, showActionSheet, showEditModal, showCropper, isLoading,
             currentFolder, currentItems, currentFoldersList, currentNovelsList, activeNovel, filteredList, filterTitle, novelsByPlatform,
             selectedItem, selectedType, editForm, tempBgSrc, cropImg, cropArea, cropBox, cropBoxStyle,
             openDetail, closeDetail, formatDate, enterFolder, openFilteredView, closeFilteredView, performSearch,
             openManualAdd, createNewFolder, handleAiUpload, openEditModal, closeEditModal, saveEdit, renameFolder, deleteItem,
             handleTouchStart, handleMainTouchEnd, handleSettingsTouchEnd, handleGenericSwipeBack,
-            startLongPress, cancelLongPress, closeActionSheet, triggerBgUpload, handleBgSelect, 
+            startLongPress, cancelLongPress, closeActionSheet, triggerBgUpload, handleBgSelect, removeBg,
             initCropBox, cropTouchStart, cropTouchMove, confirmCrop,
             exportData, triggerImport, handleImportData, clearData
         };

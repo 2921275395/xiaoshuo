@@ -56,14 +56,14 @@ createApp({
         const selectedItem = ref(null);
         const selectedType = ref('');
         
-        // Cropper State
+        // Cropper State (New Logic)
         const tempBgSrc = ref('');
         const cropImg = ref(null);
         const cropArea = ref(null);
         const cropBox = reactive({ x: 0, y: 0, w: 0, h: 0 });
-        let cropStartTouches = []; 
-        let cropStartBox = {}; 
-        let cropStartDist = 0;
+        let activeHandle = null; // 'tl', 'tr', 'bl', 'br', 'move'
+        let startTouch = { x: 0, y: 0 };
+        let startBox = { x: 0, y: 0, w: 0, h: 0 };
         let touchStartX = 0;
 
         // Init
@@ -77,12 +77,10 @@ createApp({
                 const cfg = JSON.parse(c);
                 zhipuKey.value = cfg.zhipuKey || '';
                 openaiKey.value = cfg.openaiKey || '';
-                // Fallback for old single key
                 if(!zhipuKey.value && !openaiKey.value && cfg.apiKey) {
                     if(cfg.apiProvider === 'zhipu') zhipuKey.value = cfg.apiKey;
                     else openaiKey.value = cfg.apiKey;
                 }
-                
                 bgColor.value = cfg.bgColor || '#8EC5FC'; 
                 bgImage.value = cfg.bgImage || '';
                 apiProvider.value = cfg.apiProvider || 'zhipu';
@@ -157,10 +155,7 @@ createApp({
         
         // Detail & Reading Dates
         const openDetail = (n) => {
-            // Migrate single date to array
-            if (!n.readDates) {
-                n.readDates = n.readDate ? [n.readDate] : [];
-            }
+            if (!n.readDates) n.readDates = n.readDate ? [n.readDate] : [];
             activeNovel.value = n; showDetail.value = true;
         };
         const addReadDate = () => {
@@ -169,10 +164,13 @@ createApp({
                 activeNovel.value.readDates.push(today);
             }
         };
-        const removeReadDate = (idx) => {
-            if (activeNovel.value) {
-                activeNovel.value.readDates.splice(idx, 1);
-            }
+        const startDateLongPress = (idx) => {
+            lpTimer = setTimeout(() => {
+                openConfirm('删除这条阅读记录？', () => {
+                   if(activeNovel.value) activeNovel.value.readDates.splice(idx, 1);
+                });
+                if(navigator.vibrate) navigator.vibrate(50);
+            }, 600);
         };
         const closeDetail = () => { showDetail.value = false; activeNovel.value = null; };
 
@@ -180,6 +178,8 @@ createApp({
         const filterByAuthor = (author) => {
             if(!author) return;
             const res = novels.value.filter(n => n.author === author);
+            // Close detail immediately and show results
+            showDetail.value = false; 
             openFilteredView(`作者: ${author}`, res);
         };
 
@@ -333,6 +333,7 @@ createApp({
                 const base64Img = reader.result.split(',')[1];
                 let url, headers, body;
                 const model = (apiProvider.value === 'zhipu') ? 'glm-4v' : (apiModel.value || 'gpt-4o');
+                const prompt = "Please analyze the image containing a book cover. Extract the book title, author, and platform (e.g., Qidian, Zongheng). Output strictly in raw JSON format without markdown blocks. Keys: 'title', 'author', 'platform'. If unknown, use empty string.";
                 
                 try {
                     if (apiProvider.value === 'zhipu') {
@@ -340,7 +341,7 @@ createApp({
                         headers = {'Content-Type':'application/json','Authorization':`Bearer ${currentKey.value}`};
                         body = {
                             model: model,
-                            messages: [{role:"user", content:[{type:"text", text:"提取书名,作者,平台(如起点). JSON only:{\"title\":\"\",\"author\":\"\",\"platform\":\"\"}"}, {type:"image_url", image_url:{url:base64Img}}]}]
+                            messages: [{role:"user", content:[{type:"text", text: prompt}, {type:"image_url", image_url:{url:base64Img}}]}]
                         };
                     } else {
                         let base = apiUrl.value || 'https://api.openai.com/v1';
@@ -349,7 +350,7 @@ createApp({
                         headers = {'Content-Type':'application/json','Authorization':`Bearer ${currentKey.value}`};
                         body = {
                             model: model, max_tokens: 300,
-                            messages: [{role:"user", content:[{type:"text", text:"Extract title, author, platform. JSON only."}, {type:"image_url", image_url:{url:`data:image/jpeg;base64,${base64Img}`}}]}]
+                            messages: [{role:"user", content:[{type:"text", text: prompt}, {type:"image_url", image_url:{url:`data:image/jpeg;base64,${base64Img}`}}]}]
                         };
                     }
 
@@ -365,10 +366,9 @@ createApp({
                     if(!d.choices || !d.choices[0]) throw new Error("API 未返回 choices");
 
                     const content = d.choices[0].message.content;
-                    // --- Improved Regex for JSON extraction ---
-                    const jsonMatch = content.match(/\{[\s\S]*\}/);
+                    const jsonMatch = content.match(/\{[\s\S]*\}/); // Find first { and last }
                     
-                    if(!jsonMatch) throw new Error("AI未返回有效JSON格式");
+                    if(!jsonMatch) throw new Error("AI未返回有效JSON格式(可能模型不支持识图)");
                     
                     const newNovel = JSON.parse(jsonMatch[0]);
                     
@@ -382,7 +382,7 @@ createApp({
             };
         };
 
-        // --- Gestures & Swipe ---
+        // --- Gestures ---
         const handleTouchStart = (e) => touchStartX = e.changedTouches[0].screenX;
         const handleMainTouchEnd = (e) => {
             if (isSelectionMode.value) return; 
@@ -416,7 +416,7 @@ createApp({
             showToast("已删除");
         };
 
-        // --- Cropper (Fixed Logic) ---
+        // --- New Cropper Logic (Grid + Corner Handles) ---
         const triggerBgUpload = () => document.getElementById('bgInput').click();
         const handleBgSelect = (e) => {
             const f = e.target.files[0]; if(!f) return;
@@ -427,118 +427,88 @@ createApp({
         const initCropBox = () => {
             const img = cropImg.value; if(!img) return;
             const imgRect = img.getBoundingClientRect();
-            const screenRatio = window.innerWidth / window.innerHeight;
-            let w = imgRect.width * 0.8; let h = w / screenRatio;
-            if (h > imgRect.height * 0.9) { h = imgRect.height * 0.9; w = h * screenRatio; }
+            // Default 1:1 box in center
+            let w = imgRect.width * 0.6; let h = w * (window.innerHeight / window.innerWidth); 
+            if(h > imgRect.height * 0.8) { h = imgRect.height * 0.8; w = h * (window.innerWidth/window.innerHeight); }
             const areaRect = cropArea.value.getBoundingClientRect();
             cropBox.w = w; cropBox.h = h;
             cropBox.x = (imgRect.left - areaRect.left) + (imgRect.width - w)/2;
             cropBox.y = (imgRect.top - areaRect.top) + (imgRect.height - h)/2;
         };
         const cropBoxStyle = computed(() => ({ left: cropBox.x + 'px', top: cropBox.y + 'px', width: cropBox.w + 'px', height: cropBox.h + 'px' }));
-        
+
         const cropTouchStart = (e) => {
-            cropStartTouches = Array.from(e.touches).map(t => ({x: t.clientX, y: t.clientY})); // Use clientX/Y
-            cropStartBox = { ...cropBox };
-            if (e.touches.length === 2) {
-                cropStartDist = Math.hypot(
-                    e.touches[0].clientX - e.touches[1].clientX, 
-                    e.touches[0].clientY - e.touches[1].clientY
-                );
+            const touch = e.touches[0];
+            const target = document.elementFromPoint(touch.clientX, touch.clientY);
+            // Check if handle or box
+            if(target.classList.contains('crop-handle')) {
+                activeHandle = target.dataset.handle;
+            } else if (target.classList.contains('crop-box') || target.closest('.crop-box')) {
+                activeHandle = 'move';
+            } else {
+                activeHandle = null;
             }
+            startTouch = { x: touch.clientX, y: touch.clientY };
+            startBox = { ...cropBox };
         };
 
         const cropTouchMove = (e) => {
-            if (!showCropper.value) return;
-            if (e.cancelable) e.preventDefault();
+            if (!activeHandle) return;
+            e.preventDefault();
+            const touch = e.touches[0];
+            const dx = touch.clientX - startTouch.x;
+            const dy = touch.clientY - startTouch.y;
             
             const imgRect = cropImg.value.getBoundingClientRect();
             const areaRect = cropArea.value.getBoundingClientRect();
-            
-            // Bounds relative to the area container
-            const minX = imgRect.left - areaRect.left; 
+            // Constraints
+            const minX = imgRect.left - areaRect.left;
             const maxX = minX + imgRect.width;
-            const minY = imgRect.top - areaRect.top; 
+            const minY = imgRect.top - areaRect.top;
             const maxY = minY + imgRect.height;
 
-            if (e.touches.length === 1 && cropStartTouches.length >= 1) {
-                const dx = e.touches[0].clientX - cropStartTouches[0].x;
-                const dy = e.touches[0].clientY - cropStartTouches[0].y;
-                let nx = cropStartBox.x + dx; 
-                let ny = cropStartBox.y + dy;
-
+            if (activeHandle === 'move') {
+                let nx = startBox.x + dx; 
+                let ny = startBox.y + dy;
                 // Clamp
                 if (nx < minX) nx = minX;
                 if (ny < minY) ny = minY;
                 if (nx + cropBox.w > maxX) nx = maxX - cropBox.w;
                 if (ny + cropBox.h > maxY) ny = maxY - cropBox.h;
-                
                 cropBox.x = nx; cropBox.y = ny;
-
-            } else if (e.touches.length === 2 && cropStartTouches.length >= 2) {
-                const curDist = Math.hypot(
-                    e.touches[0].clientX - e.touches[1].clientX, 
-                    e.touches[0].clientY - e.touches[1].clientY
-                );
-                const scale = curDist / (cropStartDist || 1);
+            } else {
+                // Resize logic
+                let nx = startBox.x, ny = startBox.y, nw = startBox.w, nh = startBox.h;
                 
-                let nw = cropStartBox.w * scale;
-                let nh = nw / (window.innerWidth / window.innerHeight);
+                if (activeHandle.includes('r')) nw = startBox.w + dx;
+                if (activeHandle.includes('l')) { nw = startBox.w - dx; nx = startBox.x + dx; }
+                if (activeHandle.includes('b')) nh = startBox.h + dy;
+                if (activeHandle.includes('t')) { nh = startBox.h - dy; ny = startBox.y + dy; }
+                
+                // Min size check
+                if (nw < 50) nw = 50; if (nh < 50) nh = 50;
 
-                // Max/Min Size Constraints
-                if (nw > 50 && nw <= imgRect.width && nh <= imgRect.height) {
-                     // Center zoom
-                    const dx = (nw - cropStartBox.w) / 2;
-                    const dy = (nh - cropStartBox.h) / 2;
-                    let nx = cropStartBox.x - dx;
-                    let ny = cropStartBox.y - dy;
-
-                    // Bound checks for zoom
-                    if(nx >= minX && ny >= minY && nx+nw <= maxX && ny+nh <= maxY) {
-                         cropBox.w = nw; cropBox.h = nh; cropBox.x = nx; cropBox.y = ny;
-                    }
+                // Boundary check (approximate for simplicity in resizing)
+                if (nx >= minX && ny >= minY && nx + nw <= maxX && ny + nh <= maxY) {
+                    cropBox.x = nx; cropBox.y = ny; cropBox.w = nw; cropBox.h = nh;
                 }
             }
         };
+        const cropTouchEnd = () => { activeHandle = null; };
 
         const confirmCrop = () => {
-            try {
-                const cvs = document.createElement('canvas'); const ctx = cvs.getContext('2d');
-                // Use screen resolution
-                const dpr = window.devicePixelRatio || 2; 
-                const screenW = window.innerWidth;
-                const screenH = window.innerHeight;
-                cvs.width = screenW * dpr; 
-                cvs.height = screenH * dpr;
-                
-                const img = cropImg.value; 
-                const imgRect = img.getBoundingClientRect(); 
-                const areaRect = cropArea.value.getBoundingClientRect();
-                
-                // Coordinates of crop box relative to image
-                // Box Absolute X - Image Absolute X = Relative X
-                // (areaRect.left + cropBox.x) - imgRect.left
-                const relX = (areaRect.left + cropBox.x) - imgRect.left;
-                const relY = (areaRect.top + cropBox.y) - imgRect.top;
-                
-                // Scale factor (Natural Size / Displayed Size)
-                const scaleX = img.naturalWidth / imgRect.width;
-                const scaleY = img.naturalHeight / imgRect.height;
+            const cvs = document.createElement('canvas'); const ctx = cvs.getContext('2d');
+            const dpr = window.devicePixelRatio || 2; 
+            cvs.width = window.innerWidth * dpr; cvs.height = window.innerHeight * dpr;
+            const img = cropImg.value; const imgRect = img.getBoundingClientRect(); const areaRect = cropArea.value.getBoundingClientRect();
+            
+            const relX = (areaRect.left + cropBox.x) - imgRect.left;
+            const relY = (areaRect.top + cropBox.y) - imgRect.top;
+            const scaleX = img.naturalWidth / imgRect.width;
+            const scaleY = img.naturalHeight / imgRect.height;
 
-                ctx.drawImage(
-                    img, 
-                    relX * scaleX, relY * scaleY, 
-                    cropBox.w * scaleX, cropBox.h * scaleY, 
-                    0, 0, 
-                    cvs.width, cvs.height
-                );
-                
-                bgImage.value = cvs.toDataURL('image/png'); 
-                showCropper.value = false;
-            } catch(e) {
-                console.error(e);
-                showToast("裁剪出错");
-            }
+            ctx.drawImage(img, relX * scaleX, relY * scaleY, cropBox.w * scaleX, cropBox.h * scaleY, 0, 0, cvs.width, cvs.height);
+            bgImage.value = cvs.toDataURL('image/png'); showCropper.value = false;
         };
 
         // Other Actions
@@ -554,7 +524,7 @@ createApp({
                 const d = JSON.parse(ev.target.result);
                 novels.value = d.novels||[]; folders.value = d.folders||[];
                 if(d.config) { 
-                    zhipuKey.value = d.config.zhipuKey || d.config.apiKey || ''; // Compat
+                    zhipuKey.value = d.config.zhipuKey || d.config.apiKey || ''; 
                     openaiKey.value = d.config.openaiKey || '';
                     bgColor.value=d.config.bgColor; 
                     apiProvider.value=d.config.apiProvider||'zhipu'; 
@@ -590,8 +560,8 @@ createApp({
             openMoveModal, closeMoveModal, enterMoveFolder, moveNavTo, confirmMove,
             openConfirm, closeConfirm, executeConfirm, showToast, openModelPicker, selectModel,
             handleTouchStart, handleMainTouchEnd, handleSettingsTouchEnd, handleGenericSwipeBack,
-            startLongPress, cancelLongPress, closeActionSheet, deleteItem, addReadDate, removeReadDate,
-            triggerBgUpload, handleBgSelect, removeBg, initCropBox, cropTouchStart, cropTouchMove, confirmCrop, 
+            startLongPress, cancelLongPress, closeActionSheet, deleteItem, addReadDate, startDateLongPress,
+            triggerBgUpload, handleBgSelect, removeBg, initCropBox, cropTouchStart, cropTouchMove, cropTouchEnd, confirmCrop, 
             exportData, triggerImport, handleImportData, clearData, handleAiUpload, fetchModels
         };
     }

@@ -259,8 +259,11 @@ body {
 /* Detail Info */
 .detail-header { text-align: center; margin-bottom: 30px; margin-top: 20px; }
 .detail-title { font-size: 28px; font-weight: bold; margin-bottom: 10px; text-shadow: var(--text-shadow); }
-.detail-author { opacity: 0.8; text-shadow: var(--text-shadow); }
+.detail-author { opacity: 0.8; text-shadow: var(--text-shadow); font-size: 16px; }
+.detail-author.clickable { text-decoration: underline; text-decoration-color: rgba(255,255,255,0.4); text-underline-offset: 4px; }
+.detail-author.clickable:active { opacity: 0.6; }
 .detail-platform { font-size: 12px; opacity: 0.6; margin-top: 5px; }
+
 .info-block {
     background: rgba(255,255,255,0.05); border-radius: 20px;
     padding: 16px; margin-bottom: 12px;
@@ -270,20 +273,32 @@ body {
 .date-input { background: none; border: none; color: white; width: 100%; font-size: 16px; font-family: inherit; }
 .review-area { width: 100%; background: none; border: none; color: white; resize: none; min-height: 180px; font-size: 16px; line-height: 1.5; font-family: inherit; }
 
-/* Loading & Toast */
+/* Date Tags */
+.date-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.date-tag { 
+    background: rgba(255,255,255,0.1); border-radius: 8px; padding: 5px 10px; 
+    display: flex; align-items: center; gap: 8px;
+}
+.date-input-mini { 
+    background: none; border: none; color: white; font-family: inherit; font-size: 14px; width: 110px;
+}
+.remove-date { opacity: 0.6; font-size: 16px; padding: 2px; }
+.add-date-btn { 
+    width: 24px; height: 24px; background: rgba(255,255,255,0.2); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+}
+.add-date-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.3); }
+
+/* Minimal Loader */
 .loading-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     z-index: 999; display: flex; align-items: center; justify-content: center;
     background: rgba(0,0,0,0.1); backdrop-filter: blur(2px);
 }
-.loading-box {
-    background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(20px);
-    border: 1px solid rgba(255,255,255,0.2);
-    padding: 30px; border-radius: 30px;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.1); color: white;
+.simple-loader {
+    font-size: 40px; color: white; opacity: 0.9;
+    text-shadow: 0 0 10px rgba(0,0,0,0.2);
 }
-.loading-box i { font-size: 40px; }
 
 .toast-container {
     position: fixed; top: 40px; left: 50%; transform: translateX(-50%);

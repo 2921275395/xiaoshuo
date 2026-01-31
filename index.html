@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>我的书架</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
@@ -32,6 +32,7 @@
         </div>
 
         <div class="grid">
+            <!-- 文件夹列表 -->
             <div v-for="folder in currentFoldersList" :key="'f-'+folder.id" 
                  class="card glass" :class="{selected: isSelected(folder.id, 'folder')}"
                  @click="handleCardClick(folder, 'folder')"
@@ -43,9 +44,12 @@
                     <div class="mini-doc"></div><div class="mini-doc"></div>
                 </div>
                 <div class="card-title">{{ folder.name }}</div>
-                <div class="select-indicator" v-if="isSelectionMode"><i class="ri-check-line" v-if="isSelected(folder.id, 'folder')"></i></div>
+                <div class="select-indicator" v-if="isSelectionMode">
+                    <i class="ri-check-line" v-if="isSelected(folder.id, 'folder')"></i>
+                </div>
             </div>
 
+            <!-- 小说列表 -->
             <div v-for="novel in currentNovelsList" :key="'n-'+novel.id" 
                  class="card glass" :class="{selected: isSelected(novel.id, 'novel')}"
                  @click="handleCardClick(novel, 'novel')"
@@ -56,7 +60,9 @@
                 <div class="card-title">{{ novel.title }}</div>
                 <div class="card-author">{{ novel.author }}</div>
                 <div class="card-tag" v-if="novel.platform">{{ novel.platform }}</div>
-                <div class="select-indicator" v-if="isSelectionMode"><i class="ri-check-line" v-if="isSelected(novel.id, 'novel')"></i></div>
+                <div class="select-indicator" v-if="isSelectionMode">
+                    <i class="ri-check-line" v-if="isSelected(novel.id, 'novel')"></i>
+                </div>
             </div>
         </div>
     </div>
@@ -78,7 +84,7 @@
             <i class="ri-add-line"></i>
         </div>
     </div>
-    <input type="file" id="fileInput" accept="image/*" @change="handleAiUpload">
+    <input type="file" id="fileInput" accept="image/*" @change="handleAiUpload" />
 
     <!-- 设置面板 -->
     <div class="settings-panel" :class="{open: showSettings}"
@@ -86,7 +92,7 @@
         <div class="header" style="padding:20px;"><h2>设置</h2></div>
         <div class="full-view-content">
             <input type="text" v-model="searchQuery" class="input-glass" 
-                   placeholder="搜索..." @keyup.enter="performSearch">
+                   placeholder="搜索..." @keyup.enter="performSearch" />
             <button v-if="searchQuery" class="btn" style="margin-top:0; margin-bottom:20px;" @click="performSearch">搜索</button>
 
             <h3 class="section-title">藏书总览</h3>
@@ -104,7 +110,7 @@
             </div>
             
             <div style="margin-top:15px; display:flex; gap:10px;">
-                 <input type="color" v-model="bgColor" class="color-picker-input">
+                 <input type="color" v-model="bgColor" class="color-picker-input" />
                  <button class="btn" style="margin-top:0; flex:1;" @click="triggerBgUpload">换背景图</button>
                  <button class="btn" style="margin-top:0; width:50px;" v-if="bgImage" @click="removeBg">
                      <i class="ri-delete-bin-line"></i>
@@ -118,13 +124,13 @@
             </div>
             
             <div v-if="apiProvider === 'zhipu'">
-                <input type="password" v-model="zhipuKey" class="input-glass" placeholder="智谱 API Key">
+                <input type="password" v-model="zhipuKey" class="input-glass" placeholder="智谱 API Key" />
                 <div style="font-size:12px; opacity:0.6; margin-bottom:10px;">* 自动使用 GLM-4V 模型</div>
             </div>
             
             <div v-if="apiProvider === 'openai'">
-                <input type="password" v-model="openaiKey" class="input-glass" placeholder="OpenAI/公益站 API Key">
-                <input v-model="apiUrl" class="input-glass" placeholder="API URL (例如 https://api.openai.com/v1)">
+                <input type="password" v-model="openaiKey" class="input-glass" placeholder="OpenAI/公益站 API Key" />
+                <input v-model="apiUrl" class="input-glass" placeholder="API URL (例如 https://api.openai.com/v1)" />
                 
                 <button class="btn" @click="fetchModels" style="margin-top:5px; margin-bottom:12px;">
                     <i class="ri-link" style="margin-right:5px;"></i> 链接 / 刷新模型
@@ -171,7 +177,6 @@
         <div class="full-view-content">
             <div class="detail-header">
                 <div class="detail-title">{{ activeNovel.title }}</div>
-                <!-- 干净的作者名，无下划线 -->
                 <div class="detail-author clean-author" @click="filterByAuthor(activeNovel.author)">
                     {{ activeNovel.author }}
                 </div>
@@ -192,7 +197,7 @@
                     <div v-for="(date, idx) in activeNovel.readDates" :key="idx" 
                          class="date-tag-clean" 
                          @touchstart="startDateLongPress(idx)" @touchend="cancelLongPress" @contextmenu.prevent>
-                        <input type="date" v-model="activeNovel.readDates[idx]" class="date-input-mini">
+                        <input type="date" v-model="activeNovel.readDates[idx]" class="date-input-mini" />
                     </div>
                     <div v-if="!activeNovel.readDates || activeNovel.readDates.length === 0" style="opacity:0.5; font-size:13px;">暂无记录</div>
                 </div>
@@ -212,12 +217,12 @@
                 {{ addFormMode === 'edit' ? '编辑信息' : (addFormType === 'folder' ? '新建文件夹' : '手动添加') }}
             </h3>
             <div v-if="addFormType === 'folder'">
-                 <input v-model="addForm.title" class="input-glass" placeholder="文件夹名称">
+                 <input v-model="addForm.title" class="input-glass" placeholder="文件夹名称" />
             </div>
             <div v-else>
-                <input v-model="addForm.title" class="input-glass" placeholder="书名">
-                <input v-model="addForm.author" class="input-glass" placeholder="作者">
-                <input v-model="addForm.platform" class="input-glass" placeholder="平台 (如起点)">
+                <input v-model="addForm.title" class="input-glass" placeholder="书名" />
+                <input v-model="addForm.author" class="input-glass" placeholder="作者" />
+                <input v-model="addForm.platform" class="input-glass" placeholder="平台 (如起点)" />
             </div>
             <div class="modal-actions">
                 <button class="btn" @click="closeAddModal" style="opacity:0.7">取消</button>
@@ -306,13 +311,13 @@
     <!-- 裁剪 (完全重构版) -->
     <div class="cropper-modal" v-if="showCropper">
         <!-- 容器：屏蔽底层点击 -->
-        <div class="cropper-container" @click.stop>
+        <div class="cropper-container" @click.stop="">
             <div class="cropper-area" ref="cropArea" 
                  @touchstart.stop="cropTouchStart" 
                  @touchmove.stop="cropTouchMove"
                  @touchend.stop="cropTouchEnd">
                 
-                <img :src="tempBgSrc" class="crop-target-img" ref="cropImg" @load="initCropBox">
+                <img :src="tempBgSrc" class="crop-target-img" ref="cropImg" @load="initCropBox" />
                 
                 <!-- 遮罩层 (阴影) -->
                 <div class="crop-overlay"></div>
@@ -351,8 +356,8 @@
         <i class="ri-loader-4-line ri-spin simple-loader"></i>
     </div>
 
-    <input type="file" id="bgInput" accept="image/*" @change="handleBgSelect">
-    <input type="file" id="importInput" accept=".json" @change="handleImportData">
+    <input type="file" id="bgInput" accept="image/*" @change="handleBgSelect" />
+    <input type="file" id="importInput" accept=".json" @change="handleImportData" />
 </div>
 
 <script src="app.js"></script>

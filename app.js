@@ -15,6 +15,7 @@ createApp({
         const modelList = ref([]);
         const bgColor = ref('#8EC5FC');
         const bgImage = ref('');
+        const sortMode = ref('update'); // 'update' or 'create'
         
         // UI State
         const showSettings = ref(false);
@@ -23,6 +24,7 @@ createApp({
         const showFabMenu = ref(false);
         const showActionSheet = ref(false);
         const showCropper = ref(false);
+        const showSortModal = ref(false);
         const isLoading = ref(false);
         
         // Modal States
@@ -56,15 +58,16 @@ createApp({
         const selectedItem = ref(null);
         const selectedType = ref('');
         
-        // Cropper State (New Logic)
+        // Cropper State
         const tempBgSrc = ref('');
         const cropImg = ref(null);
         const cropArea = ref(null);
         const cropBox = reactive({ x: 0, y: 0, w: 0, h: 0 });
-        let activeHandle = null; // 'tl', 'tr', 'bl', 'br', 'move'
+        let activeHandle = null; 
         let startTouch = { x: 0, y: 0 };
         let startBox = { x: 0, y: 0, w: 0, h: 0 };
         let touchStartX = 0;
+        let mainLongPressTimer;
 
         // Init
         onMounted(() => {
@@ -86,6 +89,7 @@ createApp({
                 apiProvider.value = cfg.apiProvider || 'zhipu';
                 apiUrl.value = cfg.apiUrl || '';
                 apiModel.value = cfg.apiModel || (apiProvider.value === 'zhipu' ? 'glm-4v' : 'gpt-4o');
+                sortMode.value = cfg.sortMode || 'update';
             }
             updateBg();
         });
@@ -96,21 +100,19 @@ createApp({
             localStorage.setItem('rf_folders_v3', JSON.stringify(folders.value));
         }, { deep: true });
 
-        watch([zhipuKey, openaiKey, bgColor, bgImage, apiProvider, apiUrl, apiModel], () => {
+        watch([zhipuKey, openaiKey, bgColor, bgImage, apiProvider, apiUrl, apiModel, sortMode], () => {
             localStorage.setItem('rf_config_v3', JSON.stringify({
                 zhipuKey: zhipuKey.value, openaiKey: openaiKey.value,
                 bgColor: bgColor.value, bgImage: bgImage.value,
-                apiProvider: apiProvider.value, apiUrl: apiUrl.value, apiModel: apiModel.value
+                apiProvider: apiProvider.value, apiUrl: apiUrl.value, apiModel: apiModel.value,
+                sortMode: sortMode.value
             }));
             updateBg();
         });
         
         watch(apiProvider, (newVal) => {
-            if (newVal === 'zhipu') {
-                apiModel.value = 'glm-4v';
-            } else {
-                if (apiModel.value === 'glm-4v') apiModel.value = 'gpt-4o';
-            }
+            if (newVal === 'zhipu') apiModel.value = 'glm-4v';
+            else if (apiModel.value === 'glm-4v') apiModel.value = 'gpt-4o';
         });
 
         const updateBg = () => {
@@ -129,12 +131,28 @@ createApp({
         };
         const closeConfirm = () => showConfirmModal.value = false;
         const executeConfirm = () => { if(confirmCallback) confirmCallback(); closeConfirm(); };
+        const touchUpdate = () => { if(activeNovel.value) activeNovel.value.updateTime = new Date().toISOString(); };
 
         // Computed
         const currentKey = computed(() => apiProvider.value === 'zhipu' ? zhipuKey.value : openaiKey.value);
         const currentItems = computed(() => [...currentFoldersList.value, ...currentNovelsList.value]);
+        
         const currentFoldersList = computed(() => folders.value.filter(f => (f.parentId || null) === (currentFolder.value ? currentFolder.value.id : null)));
-        const currentNovelsList = computed(() => novels.value.filter(n => n.folderId === (currentFolder.value ? currentFolder.value.id : null)));
+        
+        const currentNovelsList = computed(() => {
+            const list = novels.value.filter(n => n.folderId === (currentFolder.value ? currentFolder.value.id : null));
+            return list.sort((a, b) => {
+                if (sortMode.value === 'update') {
+                    // Fallback to createTime if updateTime is missing
+                    const tA = a.updateTime || a.createTime;
+                    const tB = b.updateTime || b.createTime;
+                    return new Date(tB) - new Date(tA);
+                } else {
+                    return new Date(b.createTime) - new Date(a.createTime);
+                }
+            });
+        });
+
         const novelsByPlatform = computed(() => {
             const map = {};
             novels.value.forEach(n => {
@@ -145,7 +163,14 @@ createApp({
             return map;
         });
 
-        // Navigation Actions
+        // Sorting
+        const changeSortMode = (mode) => {
+            sortMode.value = mode;
+            showSortModal.value = false;
+            showToast(mode === 'update' ? '已按修改时间排序' : '已按创建时间排序');
+        };
+
+        // Navigation
         const enterFolder = (f) => currentFolder.value = f;
         const goBackFolder = () => {
             if(!currentFolder.value) return;
@@ -153,37 +178,41 @@ createApp({
             currentFolder.value = parentId ? folders.value.find(f => f.id === parentId) : null;
         };
         
-        // Detail & Reading Dates
+        // Detail
         const openDetail = (n) => {
             if (!n.readDates) n.readDates = n.readDate ? [n.readDate] : [];
+            // Update time when viewing? No, only when editing.
             activeNovel.value = n; showDetail.value = true;
         };
         const addReadDate = () => {
             if (activeNovel.value) {
                 const today = new Date().toISOString().split('T')[0];
                 activeNovel.value.readDates.push(today);
+                activeNovel.value.updateTime = new Date().toISOString();
             }
         };
         const startDateLongPress = (idx) => {
             lpTimer = setTimeout(() => {
                 openConfirm('删除这条阅读记录？', () => {
-                   if(activeNovel.value) activeNovel.value.readDates.splice(idx, 1);
+                   if(activeNovel.value) {
+                       activeNovel.value.readDates.splice(idx, 1);
+                       activeNovel.value.updateTime = new Date().toISOString();
+                   }
                 });
                 if(navigator.vibrate) navigator.vibrate(50);
             }, 600);
         };
         const closeDetail = () => { showDetail.value = false; activeNovel.value = null; };
 
-        // Author Filter
+        // Filter
         const filterByAuthor = (author) => {
             if(!author) return;
             const res = novels.value.filter(n => n.author === author);
-            // Close detail immediately and show results
             showDetail.value = false; 
             openFilteredView(`作者: ${author}`, res);
         };
 
-        // Add / Edit
+        // Add/Edit
         const openAddModal = (type) => {
             addFormMode.value = 'add';
             addFormType.value = type === 'manual' ? 'novel' : 'folder';
@@ -199,13 +228,17 @@ createApp({
                 } else {
                     novels.value.unshift({
                         id: Date.now(), title: addForm.title, author: addForm.author||'佚名', platform: addForm.platform||'',
-                        folderId: currentFolder.value ? currentFolder.value.id : null, createTime: new Date().toISOString(), readDates: []
+                        folderId: currentFolder.value ? currentFolder.value.id : null, 
+                        createTime: new Date().toISOString(), updateTime: new Date().toISOString(), readDates: []
                     });
                 }
             } else {
                 const target = selectedItem.value;
                 if(selectedType.value === 'folder') target.name = addForm.title;
-                else { target.title = addForm.title; target.author = addForm.author; target.platform = addForm.platform; }
+                else { 
+                    target.title = addForm.title; target.author = addForm.author; target.platform = addForm.platform; 
+                    target.updateTime = new Date().toISOString();
+                }
             }
             closeAddModal();
         };
@@ -235,11 +268,8 @@ createApp({
             } else { if(type === 'novel') openDetail(item); else enterFolder(item); }
         };
 
-        // Move
-        const openMoveModal = () => {
-            if(selectedItems.value.length === 0) return;
-            moveTargetId.value = null; showMoveModal.value = true;
-        };
+        // Move logic ... (unchanged core, just linked)
+        const openMoveModal = () => { if(selectedItems.value.length === 0) return; moveTargetId.value = null; showMoveModal.value = true; };
         const closeMoveModal = () => showMoveModal.value = false;
         const moveCurrentSubfolders = computed(() => folders.value.filter(f => (f.parentId || null) === moveTargetId.value));
         const movePath = computed(() => {
@@ -253,7 +283,7 @@ createApp({
             selectedItems.value.forEach(key => {
                 const type = key.startsWith('n') ? 'novel' : 'folder';
                 const id = parseInt(key.split('-')[1]);
-                if(type === 'novel') { const n = novels.value.find(x => x.id === id); if(n) n.folderId = moveTargetId.value; }
+                if(type === 'novel') { const n = novels.value.find(x => x.id === id); if(n) { n.folderId = moveTargetId.value; n.updateTime = new Date().toISOString(); } }
                 else {
                     const f = folders.value.find(x => x.id === id);
                     if(f && f.id !== moveTargetId.value) { 
@@ -266,60 +296,29 @@ createApp({
             closeMoveModal(); exitSelectionMode(); showToast("移动完成");
         };
 
-        // --- API & Custom Select ---
-        const openModelPicker = () => {
-            if(modelList.value.length === 0) showToast("请先点击【链接 / 刷新模型】");
-            showModelPicker.value = true;
-        };
-        const selectModel = (id) => {
-            apiModel.value = id;
-            showModelPicker.value = false;
-        };
-
+        // API
+        const openModelPicker = () => { if(modelList.value.length === 0) showToast("请先点击【链接 / 刷新模型】"); showModelPicker.value = true; };
+        const selectModel = (id) => { apiModel.value = id; showModelPicker.value = false; };
         const fetchModels = async () => {
             if(!currentKey.value) { showToast("请先填写 API Key"); return; }
-            isLoading.value = true;
-            modelList.value = [];
-            
+            isLoading.value = true; modelList.value = [];
             try {
-                let url;
-                let headers = { 'Authorization': `Bearer ${currentKey.value}` };
-                
-                if(apiProvider.value === 'zhipu') {
-                    url = 'https://open.bigmodel.cn/api/paas/v4/models'; 
-                } else {
+                let url, headers = { 'Authorization': `Bearer ${currentKey.value}` };
+                if(apiProvider.value === 'zhipu') url = 'https://open.bigmodel.cn/api/paas/v4/models'; 
+                else {
                     let base = apiUrl.value || 'https://api.openai.com/v1';
                     if(base.endsWith('/')) base = base.slice(0, -1);
                     if(base.endsWith('/chat/completions')) base = base.replace('/chat/completions', '');
                     url = `${base}/models`;
                 }
-
                 const res = await fetch(url, { method: 'GET', headers });
-                const text = await res.text();
-                if (!text || text.trim() === '') throw new Error("API 返回了空内容");
-
-                let data;
-                try { data = JSON.parse(text); } catch(e) { throw new Error(`非 JSON 响应: ${text.substring(0, 80)}...`); }
-                
-                if(data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-                
+                const data = await res.json();
+                if(data.error) throw new Error(data.error.message);
                 if(Array.isArray(data.data)) {
-                    modelList.value = data.data.sort((a,b) => {
-                        const aV = a.id.includes('vision') || a.id.includes('4v');
-                        const bV = b.id.includes('vision') || b.id.includes('4v');
-                        return bV - aV;
-                    });
-                    if(modelList.value.length > 0) {
-                        if(!apiModel.value) apiModel.value = modelList.value[0].id;
-                        showToast(`获取成功，共 ${modelList.value.length} 个模型`);
-                        showModelPicker.value = true;
-                    } else throw new Error("模型列表为空");
-                } else throw new Error("格式错误: data不是数组");
-            } catch(e) {
-                showToast("连接失败: " + e.message);
-            } finally {
-                isLoading.value = false;
-            }
+                    modelList.value = data.data.sort((a,b) => (b.id.includes('4v')||b.id.includes('vision')) - (a.id.includes('4v')||a.id.includes('vision')));
+                    if(modelList.value.length) { if(!apiModel.value) apiModel.value = modelList.value[0].id; showToast(`共 ${modelList.value.length} 个模型`); showModelPicker.value = true; }
+                }
+            } catch(e) { showToast("失败: " + e.message); } finally { isLoading.value = false; }
         };
 
         const handleAiUpload = async(e) => {
@@ -330,10 +329,13 @@ createApp({
             const reader = new FileReader();
             reader.readAsDataURL(f);
             reader.onload = async() => {
-                const base64Img = reader.result.split(',')[1];
+                const base64Img = reader.result; // Keep full data URI
+                const base64Data = base64Img.split(',')[1];
                 let url, headers, body;
                 const model = (apiProvider.value === 'zhipu') ? 'glm-4v' : (apiModel.value || 'gpt-4o');
-                const prompt = "Please analyze the image containing a book cover. Extract the book title, author, and platform (e.g., Qidian, Zongheng). Output strictly in raw JSON format without markdown blocks. Keys: 'title', 'author', 'platform'. If unknown, use empty string.";
+                
+                // Extremely strict prompt
+                const prompt = "Extract book title, author, platform. JSON: {\"title\":\"\",\"author\":\"\",\"platform\":\"\"}. No markdown.";
                 
                 try {
                     if (apiProvider.value === 'zhipu') {
@@ -341,7 +343,7 @@ createApp({
                         headers = {'Content-Type':'application/json','Authorization':`Bearer ${currentKey.value}`};
                         body = {
                             model: model,
-                            messages: [{role:"user", content:[{type:"text", text: prompt}, {type:"image_url", image_url:{url:base64Img}}]}]
+                            messages: [{role:"user", content:[{type:"text", text: prompt}, {type:"image_url", image_url:{url:base64Data}}]}]
                         };
                     } else {
                         let base = apiUrl.value || 'https://api.openai.com/v1';
@@ -349,56 +351,69 @@ createApp({
                         url = `${base}/chat/completions`;
                         headers = {'Content-Type':'application/json','Authorization':`Bearer ${currentKey.value}`};
                         body = {
-                            model: model, max_tokens: 300,
-                            messages: [{role:"user", content:[{type:"text", text: prompt}, {type:"image_url", image_url:{url:`data:image/jpeg;base64,${base64Img}`}}]}]
+                            model: model, max_tokens: 1000,
+                            messages: [{role:"user", content:[{type:"text", text: prompt}, {type:"image_url", image_url:{url:base64Img}}]}]
                         };
                     }
 
                     const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
                     const text = await res.text();
-                    if (!text || text.trim() === '') throw new Error("API 返回空内容");
                     
                     let d;
                     try { d = JSON.parse(text); } 
-                    catch(e) { throw new Error(`API 响应非 JSON: ${text.substring(0,60)}...`); }
+                    catch(e) { console.log(text); throw new Error("API 返回了非 JSON 数据，请检查控制台"); }
                     
                     if(d.error) throw new Error(d.error.message || JSON.stringify(d.error));
-                    if(!d.choices || !d.choices[0]) throw new Error("API 未返回 choices");
+                    if(!d.choices || !d.choices[0]) throw new Error("API 未返回有效内容");
 
                     const content = d.choices[0].message.content;
-                    const jsonMatch = content.match(/\{[\s\S]*\}/); // Find first { and last }
+                    const jsonMatch = content.match(/\{[\s\S]*\}/);
                     
-                    if(!jsonMatch) throw new Error("AI未返回有效JSON格式(可能模型不支持识图)");
+                    if(!jsonMatch) throw new Error("模型未返回 JSON，请重试或更换模型");
                     
                     const newNovel = JSON.parse(jsonMatch[0]);
                     
-                    novels.value.unshift({ id: Date.now(), ...newNovel, folderId: currentFolder.value ? currentFolder.value.id : null, createTime: new Date().toISOString(), readDates: [] });
+                    novels.value.unshift({ 
+                        id: Date.now(), ...newNovel, 
+                        folderId: currentFolder.value ? currentFolder.value.id : null, 
+                        createTime: new Date().toISOString(), updateTime: new Date().toISOString(), readDates: [] 
+                    });
                     showToast("识别成功");
                 } catch(err) { 
                     showToast("识别失败: " + err.message);
-                    console.error(err);
                 }
                 isLoading.value = false; e.target.value = '';
             };
         };
 
-        // --- Gestures ---
-        const handleTouchStart = (e) => touchStartX = e.changedTouches[0].screenX;
+        // Interactions
+        const handleMainTouchStart = (e) => { 
+            touchStartX = e.changedTouches[0].screenX;
+            if(!isSelectionMode.value) {
+                mainLongPressTimer = setTimeout(() => {
+                    showSortModal.value = true;
+                    if(navigator.vibrate) navigator.vibrate(50);
+                }, 800); // 800ms for background long press
+            }
+        };
         const handleMainTouchEnd = (e) => {
+            clearTimeout(mainLongPressTimer);
             if (isSelectionMode.value) return; 
             const diff = e.changedTouches[0].screenX - touchStartX;
             if(diff > 80 && currentFolder.value) goBackFolder();
             else if (diff < -80) showSettings.value = true;
         };
+        const handleSettingsTouchStart = (e) => touchStartX = e.changedTouches[0].screenX;
         const handleSettingsTouchEnd = (e) => { if(e.changedTouches[0].screenX - touchStartX > 80) showSettings.value = false; };
         const handleGenericSwipeBack = (e, cb) => { if(e.changedTouches[0].screenX - touchStartX > 80) cb(); };
 
         let lpTimer;
-        const startLongPress = (item, type) => {
+        const startCardLongPress = (item, type) => {
+            clearTimeout(mainLongPressTimer); // Cancel background timer
             if(isSelectionMode.value) return;
             lpTimer = setTimeout(() => { selectedItem.value = item; selectedType.value = type; showActionSheet.value = true; if(navigator.vibrate) navigator.vibrate(50); }, 600);
         };
-        const cancelLongPress = () => clearTimeout(lpTimer);
+        const cancelCardLongPress = () => clearTimeout(lpTimer);
         const closeActionSheet = () => showActionSheet.value = false;
         
         const deleteItem = () => {
@@ -416,7 +431,7 @@ createApp({
             showToast("已删除");
         };
 
-        // --- New Cropper Logic (Grid + Corner Handles) ---
+        // Cropper Logic
         const triggerBgUpload = () => document.getElementById('bgInput').click();
         const handleBgSelect = (e) => {
             const f = e.target.files[0]; if(!f) return;
@@ -427,9 +442,8 @@ createApp({
         const initCropBox = () => {
             const img = cropImg.value; if(!img) return;
             const imgRect = img.getBoundingClientRect();
-            // Default 1:1 box in center
-            let w = imgRect.width * 0.6; let h = w * (window.innerHeight / window.innerWidth); 
-            if(h > imgRect.height * 0.8) { h = imgRect.height * 0.8; w = h * (window.innerWidth/window.innerHeight); }
+            let w = imgRect.width * 0.8; let h = w * (window.innerHeight / window.innerWidth); 
+            if(h > imgRect.height * 0.9) { h = imgRect.height * 0.9; w = h * (window.innerWidth/window.innerHeight); }
             const areaRect = cropArea.value.getBoundingClientRect();
             cropBox.w = w; cropBox.h = h;
             cropBox.x = (imgRect.left - areaRect.left) + (imgRect.width - w)/2;
@@ -440,14 +454,9 @@ createApp({
         const cropTouchStart = (e) => {
             const touch = e.touches[0];
             const target = document.elementFromPoint(touch.clientX, touch.clientY);
-            // Check if handle or box
-            if(target.classList.contains('crop-handle')) {
-                activeHandle = target.dataset.handle;
-            } else if (target.classList.contains('crop-box') || target.closest('.crop-box')) {
-                activeHandle = 'move';
-            } else {
-                activeHandle = null;
-            }
+            if(target.classList.contains('crop-handle')) activeHandle = target.dataset.handle;
+            else if (target.classList.contains('crop-box') || target.closest('.crop-box')) activeHandle = 'move';
+            else activeHandle = null;
             startTouch = { x: touch.clientX, y: touch.clientY };
             startBox = { ...cropBox };
         };
@@ -458,37 +467,24 @@ createApp({
             const touch = e.touches[0];
             const dx = touch.clientX - startTouch.x;
             const dy = touch.clientY - startTouch.y;
-            
             const imgRect = cropImg.value.getBoundingClientRect();
             const areaRect = cropArea.value.getBoundingClientRect();
-            // Constraints
-            const minX = imgRect.left - areaRect.left;
-            const maxX = minX + imgRect.width;
-            const minY = imgRect.top - areaRect.top;
-            const maxY = minY + imgRect.height;
+            const minX = imgRect.left - areaRect.left; const maxX = minX + imgRect.width;
+            const minY = imgRect.top - areaRect.top; const maxY = minY + imgRect.height;
 
             if (activeHandle === 'move') {
-                let nx = startBox.x + dx; 
-                let ny = startBox.y + dy;
-                // Clamp
-                if (nx < minX) nx = minX;
-                if (ny < minY) ny = minY;
+                let nx = startBox.x + dx; let ny = startBox.y + dy;
+                if (nx < minX) nx = minX; if (ny < minY) ny = minY;
                 if (nx + cropBox.w > maxX) nx = maxX - cropBox.w;
                 if (ny + cropBox.h > maxY) ny = maxY - cropBox.h;
                 cropBox.x = nx; cropBox.y = ny;
             } else {
-                // Resize logic
                 let nx = startBox.x, ny = startBox.y, nw = startBox.w, nh = startBox.h;
-                
                 if (activeHandle.includes('r')) nw = startBox.w + dx;
                 if (activeHandle.includes('l')) { nw = startBox.w - dx; nx = startBox.x + dx; }
                 if (activeHandle.includes('b')) nh = startBox.h + dy;
                 if (activeHandle.includes('t')) { nh = startBox.h - dy; ny = startBox.y + dy; }
-                
-                // Min size check
                 if (nw < 50) nw = 50; if (nh < 50) nh = 50;
-
-                // Boundary check (approximate for simplicity in resizing)
                 if (nx >= minX && ny >= minY && nx + nw <= maxX && ny + nh <= maxY) {
                     cropBox.x = nx; cropBox.y = ny; cropBox.w = nw; cropBox.h = nh;
                 }
@@ -501,19 +497,17 @@ createApp({
             const dpr = window.devicePixelRatio || 2; 
             cvs.width = window.innerWidth * dpr; cvs.height = window.innerHeight * dpr;
             const img = cropImg.value; const imgRect = img.getBoundingClientRect(); const areaRect = cropArea.value.getBoundingClientRect();
-            
             const relX = (areaRect.left + cropBox.x) - imgRect.left;
             const relY = (areaRect.top + cropBox.y) - imgRect.top;
             const scaleX = img.naturalWidth / imgRect.width;
             const scaleY = img.naturalHeight / imgRect.height;
-
             ctx.drawImage(img, relX * scaleX, relY * scaleY, cropBox.w * scaleX, cropBox.h * scaleY, 0, 0, cvs.width, cvs.height);
             bgImage.value = cvs.toDataURL('image/png'); showCropper.value = false;
         };
 
-        // Other Actions
+        // Export/Import
         const exportData = () => {
-            const b = new Blob([JSON.stringify({novels:novels.value, folders:folders.value, config:{zhipuKey:zhipuKey.value, openaiKey:openaiKey.value, bgColor:bgColor.value,apiProvider:apiProvider.value,apiUrl:apiUrl.value,apiModel:apiModel.value}})], {type:'application/json'});
+            const b = new Blob([JSON.stringify({novels:novels.value, folders:folders.value, config:{zhipuKey:zhipuKey.value, openaiKey:openaiKey.value, bgColor:bgColor.value,apiProvider:apiProvider.value,apiUrl:apiUrl.value,apiModel:apiModel.value, sortMode:sortMode.value}})], {type:'application/json'});
             const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'backup.json'; a.click();
         };
         const triggerImport = () => document.getElementById('importInput').click();
@@ -530,6 +524,7 @@ createApp({
                     apiProvider.value=d.config.apiProvider||'zhipu'; 
                     apiUrl.value=d.config.apiUrl||''; 
                     apiModel.value=d.config.apiModel||''; 
+                    sortMode.value=d.config.sortMode||'update';
                 }
                 showToast("导入成功");
             };
@@ -548,8 +543,8 @@ createApp({
         };
 
         return {
-            novels, folders, zhipuKey, openaiKey, bgColor, bgImage, apiProvider, apiUrl, apiModel, searchQuery, modelList,
-            showSettings, showDetail, showFilteredView, showFabMenu, showActionSheet, showCropper, isLoading,
+            novels, folders, zhipuKey, openaiKey, bgColor, bgImage, apiProvider, apiUrl, apiModel, searchQuery, modelList, sortMode,
+            showSettings, showDetail, showFilteredView, showFabMenu, showActionSheet, showCropper, showSortModal, isLoading,
             showAddModal, addFormMode, addFormType, addForm, showConfirmModal, confirmMessage, toastVisible, toastMsg,
             isSelectionMode, selectedItems, showMoveModal, moveTargetId, movePath, moveCurrentSubfolders,
             currentFolder, currentItems, currentFoldersList, currentNovelsList, activeNovel, filteredList, filterTitle, novelsByPlatform,
@@ -559,8 +554,8 @@ createApp({
             enterSelectionModeFromSheet, exitSelectionMode, isSelected, handleCardClick,
             openMoveModal, closeMoveModal, enterMoveFolder, moveNavTo, confirmMove,
             openConfirm, closeConfirm, executeConfirm, showToast, openModelPicker, selectModel,
-            handleTouchStart, handleMainTouchEnd, handleSettingsTouchEnd, handleGenericSwipeBack,
-            startLongPress, cancelLongPress, closeActionSheet, deleteItem, addReadDate, startDateLongPress,
+            handleMainTouchStart, handleMainTouchEnd, handleSettingsTouchStart, handleSettingsTouchEnd, handleGenericSwipeBack,
+            startCardLongPress, cancelCardLongPress, closeActionSheet, deleteItem, addReadDate, startDateLongPress, changeSortMode,
             triggerBgUpload, handleBgSelect, removeBg, initCropBox, cropTouchStart, cropTouchMove, cropTouchEnd, confirmCrop, 
             exportData, triggerImport, handleImportData, clearData, handleAiUpload, fetchModels
         };

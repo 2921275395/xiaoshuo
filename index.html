@@ -1,22 +1,23 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>我的书架</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet" />
-    <link rel="stylesheet" href="style.css" />
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div id="app">
     <div class="bg-overlay"></div>
 
-    <!-- 主界面 -->
+    <!-- 主界面 (增加了空白处长按事件) -->
     <div class="main-content" 
-         @touchstart="handleTouchStart"
-         @touchend="handleMainTouchEnd">
+         @touchstart="handleMainTouchStart"
+         @touchend="handleMainTouchEnd"
+         @contextmenu.prevent>
         
         <div class="header">
             <h1>小说</h1>
@@ -32,37 +33,33 @@
         </div>
 
         <div class="grid">
-            <!-- 文件夹列表 -->
+            <!-- 文件夹 -->
             <div v-for="folder in currentFoldersList" :key="'f-'+folder.id" 
                  class="card glass" :class="{selected: isSelected(folder.id, 'folder')}"
-                 @click="handleCardClick(folder, 'folder')"
-                 @touchstart="startLongPress(folder, 'folder')"
-                 @touchend="cancelLongPress"
+                 @click.stop="handleCardClick(folder, 'folder')"
+                 @touchstart.stop="startCardLongPress(folder, 'folder')"
+                 @touchend.stop="cancelCardLongPress"
                  @contextmenu.prevent>
                 <div class="folder-preview">
                     <div class="mini-doc"></div><div class="mini-doc"></div>
                     <div class="mini-doc"></div><div class="mini-doc"></div>
                 </div>
                 <div class="card-title">{{ folder.name }}</div>
-                <div class="select-indicator" v-if="isSelectionMode">
-                    <i class="ri-check-line" v-if="isSelected(folder.id, 'folder')"></i>
-                </div>
+                <div class="select-indicator" v-if="isSelectionMode"><i class="ri-check-line" v-if="isSelected(folder.id, 'folder')"></i></div>
             </div>
 
-            <!-- 小说列表 -->
+            <!-- 小说 -->
             <div v-for="novel in currentNovelsList" :key="'n-'+novel.id" 
                  class="card glass" :class="{selected: isSelected(novel.id, 'novel')}"
-                 @click="handleCardClick(novel, 'novel')"
-                 @touchstart="startLongPress(novel, 'novel')"
-                 @touchend="cancelLongPress"
+                 @click.stop="handleCardClick(novel, 'novel')"
+                 @touchstart.stop="startCardLongPress(novel, 'novel')"
+                 @touchend.stop="cancelCardLongPress"
                  @contextmenu.prevent>
                  <i class="ri-book-open-line card-icon"></i>
                 <div class="card-title">{{ novel.title }}</div>
                 <div class="card-author">{{ novel.author }}</div>
                 <div class="card-tag" v-if="novel.platform">{{ novel.platform }}</div>
-                <div class="select-indicator" v-if="isSelectionMode">
-                    <i class="ri-check-line" v-if="isSelected(novel.id, 'novel')"></i>
-                </div>
+                <div class="select-indicator" v-if="isSelectionMode"><i class="ri-check-line" v-if="isSelected(novel.id, 'novel')"></i></div>
             </div>
         </div>
     </div>
@@ -84,15 +81,15 @@
             <i class="ri-add-line"></i>
         </div>
     </div>
-    <input type="file" id="fileInput" accept="image/*" @change="handleAiUpload" />
+    <input type="file" id="fileInput" accept="image/*" @change="handleAiUpload">
 
     <!-- 设置面板 -->
     <div class="settings-panel" :class="{open: showSettings}"
-         @touchstart="handleTouchStart" @touchend="handleSettingsTouchEnd">
+         @touchstart="handleSettingsTouchStart" @touchend="handleSettingsTouchEnd">
         <div class="header" style="padding:20px;"><h2>设置</h2></div>
         <div class="full-view-content">
             <input type="text" v-model="searchQuery" class="input-glass" 
-                   placeholder="搜索..." @keyup.enter="performSearch" />
+                   placeholder="搜索..." @keyup.enter="performSearch">
             <button v-if="searchQuery" class="btn" style="margin-top:0; margin-bottom:20px;" @click="performSearch">搜索</button>
 
             <h3 class="section-title">藏书总览</h3>
@@ -110,7 +107,7 @@
             </div>
             
             <div style="margin-top:15px; display:flex; gap:10px;">
-                 <input type="color" v-model="bgColor" class="color-picker-input" />
+                 <input type="color" v-model="bgColor" class="color-picker-input">
                  <button class="btn" style="margin-top:0; flex:1;" @click="triggerBgUpload">换背景图</button>
                  <button class="btn" style="margin-top:0; width:50px;" v-if="bgImage" @click="removeBg">
                      <i class="ri-delete-bin-line"></i>
@@ -124,13 +121,13 @@
             </div>
             
             <div v-if="apiProvider === 'zhipu'">
-                <input type="password" v-model="zhipuKey" class="input-glass" placeholder="智谱 API Key" />
+                <input type="password" v-model="zhipuKey" class="input-glass" placeholder="智谱 API Key">
                 <div style="font-size:12px; opacity:0.6; margin-bottom:10px;">* 自动使用 GLM-4V 模型</div>
             </div>
             
             <div v-if="apiProvider === 'openai'">
-                <input type="password" v-model="openaiKey" class="input-glass" placeholder="OpenAI/公益站 API Key" />
-                <input v-model="apiUrl" class="input-glass" placeholder="API URL (例如 https://api.openai.com/v1)" />
+                <input type="password" v-model="openaiKey" class="input-glass" placeholder="OpenAI/公益站 API Key">
+                <input v-model="apiUrl" class="input-glass" placeholder="API URL (例如 https://api.openai.com/v1)">
                 
                 <button class="btn" @click="fetchModels" style="margin-top:5px; margin-bottom:12px;">
                     <i class="ri-link" style="margin-right:5px;"></i> 链接 / 刷新模型
@@ -149,7 +146,7 @@
 
     <!-- 筛选/搜索结果 -->
     <div class="full-view" :class="{show: showFilteredView}"
-         @touchstart="handleTouchStart" @touchend="handleGenericSwipeBack($event, closeFilteredView)">
+         @touchstart="handleSettingsTouchStart" @touchend="handleGenericSwipeBack($event, closeFilteredView)">
         <div class="header" style="padding:20px;">
             <i class="ri-arrow-left-line" style="font-size:24px;" @click="closeFilteredView"></i>
             <span>{{ filterTitle }}</span>
@@ -168,7 +165,7 @@
 
     <!-- 详情页 -->
     <div class="full-view" :class="{show: showDetail}" v-if="activeNovel"
-         @touchstart="handleTouchStart" @touchend="handleGenericSwipeBack($event, closeDetail)">
+         @touchstart="handleSettingsTouchStart" @touchend="handleGenericSwipeBack($event, closeDetail)">
         <div class="header" style="padding:20px;">
             <i class="ri-arrow-left-line" style="font-size:24px;" @click="closeDetail"></i>
             <span>详情</span>
@@ -187,7 +184,6 @@
                 <div style="font-size:16px;">{{ formatDate(activeNovel.createTime) }}</div>
             </div>
             
-            <!-- 极简阅读日期 -->
             <div class="info-block">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                     <label style="margin:0;">阅读记录 (长按删除)</label>
@@ -196,8 +192,8 @@
                 <div class="date-tags">
                     <div v-for="(date, idx) in activeNovel.readDates" :key="idx" 
                          class="date-tag-clean" 
-                         @touchstart="startDateLongPress(idx)" @touchend="cancelLongPress" @contextmenu.prevent>
-                        <input type="date" v-model="activeNovel.readDates[idx]" class="date-input-mini" />
+                         @touchstart="startDateLongPress(idx)" @touchend="cancelCardLongPress" @contextmenu.prevent>
+                        <input type="date" v-model="activeNovel.readDates[idx]" class="date-input-mini">
                     </div>
                     <div v-if="!activeNovel.readDates || activeNovel.readDates.length === 0" style="opacity:0.5; font-size:13px;">暂无记录</div>
                 </div>
@@ -217,12 +213,12 @@
                 {{ addFormMode === 'edit' ? '编辑信息' : (addFormType === 'folder' ? '新建文件夹' : '手动添加') }}
             </h3>
             <div v-if="addFormType === 'folder'">
-                 <input v-model="addForm.title" class="input-glass" placeholder="文件夹名称" />
+                 <input v-model="addForm.title" class="input-glass" placeholder="文件夹名称">
             </div>
             <div v-else>
-                <input v-model="addForm.title" class="input-glass" placeholder="书名" />
-                <input v-model="addForm.author" class="input-glass" placeholder="作者" />
-                <input v-model="addForm.platform" class="input-glass" placeholder="平台 (如起点)" />
+                <input v-model="addForm.title" class="input-glass" placeholder="书名">
+                <input v-model="addForm.author" class="input-glass" placeholder="作者">
+                <input v-model="addForm.platform" class="input-glass" placeholder="平台 (如起点)">
             </div>
             <div class="modal-actions">
                 <button class="btn" @click="closeAddModal" style="opacity:0.7">取消</button>
@@ -231,7 +227,23 @@
         </div>
     </div>
 
-    <!-- 移动文件夹选择器弹窗 -->
+    <!-- 排序选择弹窗 -->
+    <div class="modal-mask" :class="{show: showSortModal}" @click.self="showSortModal=false">
+        <div class="modal-card">
+            <h3 class="modal-title">排序方式</h3>
+            <button class="btn" @click="changeSortMode('update')">
+                <i class="ri-check-line" v-if="sortMode==='update'" style="margin-right:5px;"></i>按修改时间 (默认)
+            </button>
+            <button class="btn" @click="changeSortMode('create')">
+                <i class="ri-check-line" v-if="sortMode==='create'" style="margin-right:5px;"></i>按创建时间
+            </button>
+            <div class="modal-actions" style="margin-top:15px;">
+                <button class="btn" style="opacity:0.7" @click="showSortModal=false">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 移动文件夹弹窗 -->
     <div class="modal-mask" :class="{show: showMoveModal}" @click.self="closeMoveModal">
         <div class="modal-card" style="height: 60vh;">
             <h3 class="modal-title">移动到...</h3>
@@ -257,7 +269,7 @@
         </div>
     </div>
 
-    <!-- 模型选择列表弹窗 -->
+    <!-- 模型选择 -->
     <div class="modal-mask" :class="{show: showModelPicker}" @click.self="showModelPicker = false">
         <div class="modal-card" style="height: 60vh;">
             <h3 class="modal-title">选择模型</h3>
@@ -284,7 +296,7 @@
         </div>
     </div>
 
-    <!-- 统一确认弹窗 -->
+    <!-- 确认弹窗 -->
     <div class="modal-mask" :class="{show: showConfirmModal}" @click.self="closeConfirm">
         <div class="modal-card">
             <div class="confirm-text">{{ confirmMessage }}</div>
@@ -308,33 +320,26 @@
         <button class="btn btn-cancel" @click="closeActionSheet">取消</button>
     </div>
 
-    <!-- 裁剪 (完全重构版) -->
+    <!-- 裁剪 (修复层级) -->
     <div class="cropper-modal" v-if="showCropper">
-        <!-- 容器：屏蔽底层点击 -->
-        <div class="cropper-container" @click.stop="">
+        <div class="cropper-container">
+            <!-- 画布层 -->
             <div class="cropper-area" ref="cropArea" 
                  @touchstart.stop="cropTouchStart" 
                  @touchmove.stop="cropTouchMove"
                  @touchend.stop="cropTouchEnd">
-                
-                <img :src="tempBgSrc" class="crop-target-img" ref="cropImg" @load="initCropBox" />
-                
-                <!-- 遮罩层 (阴影) -->
+                <img :src="tempBgSrc" class="crop-target-img" ref="cropImg" @load="initCropBox">
                 <div class="crop-overlay"></div>
-                
-                <!-- 裁剪框 -->
                 <div class="crop-box" v-if="cropBox.w" :style="cropBoxStyle">
-                    <!-- 网格线 -->
                     <div class="crop-grid-line v v1"></div><div class="crop-grid-line v v2"></div>
                     <div class="crop-grid-line h h1"></div><div class="crop-grid-line h h2"></div>
-                    <!-- 拖拽角 -->
                     <div class="crop-handle tl" data-handle="tl"></div>
                     <div class="crop-handle tr" data-handle="tr"></div>
                     <div class="crop-handle bl" data-handle="bl"></div>
                     <div class="crop-handle br" data-handle="br"></div>
                 </div>
             </div>
-            
+            <!-- 按钮层 -->
             <div class="crop-actions-bar">
                 <button class="btn btn-cancel" style="width:100px; margin-top:0;" @click="showCropper=false">取消</button>
                 <div style="flex:1;"></div>
@@ -351,13 +356,12 @@
         </div>
     </div>
 
-    <!-- 极简加载动画 -->
     <div class="loading-overlay" v-if="isLoading">
         <i class="ri-loader-4-line ri-spin simple-loader"></i>
     </div>
 
-    <input type="file" id="bgInput" accept="image/*" @change="handleBgSelect" />
-    <input type="file" id="importInput" accept=".json" @change="handleImportData" />
+    <input type="file" id="bgInput" accept="image/*" @change="handleBgSelect">
+    <input type="file" id="importInput" accept=".json" @change="handleImportData">
 </div>
 
 <script src="app.js"></script>

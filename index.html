@@ -13,7 +13,7 @@
 <div id="app">
     <div class="bg-overlay"></div>
 
-    <!-- 主界面 (增加了空白处长按事件) -->
+    <!-- 主界面 -->
     <div class="main-content" 
          @touchstart="handleMainTouchStart"
          @touchend="handleMainTouchEnd"
@@ -33,7 +33,7 @@
         </div>
 
         <div class="grid">
-            <!-- 文件夹 -->
+            <!-- 文件夹卡片 -->
             <div v-for="folder in currentFoldersList" :key="'f-'+folder.id" 
                  class="card glass" :class="{selected: isSelected(folder.id, 'folder')}"
                  @click.stop="handleCardClick(folder, 'folder')"
@@ -45,10 +45,12 @@
                     <div class="mini-doc"></div><div class="mini-doc"></div>
                 </div>
                 <div class="card-title">{{ folder.name }}</div>
-                <div class="select-indicator" v-if="isSelectionMode"><i class="ri-check-line" v-if="isSelected(folder.id, 'folder')"></i></div>
+                <div class="select-indicator" v-if="isSelectionMode">
+                    <i class="ri-check-line" v-if="isSelected(folder.id, 'folder')"></i>
+                </div>
             </div>
 
-            <!-- 小说 -->
+            <!-- 小说卡片 -->
             <div v-for="novel in currentNovelsList" :key="'n-'+novel.id" 
                  class="card glass" :class="{selected: isSelected(novel.id, 'novel')}"
                  @click.stop="handleCardClick(novel, 'novel')"
@@ -59,10 +61,13 @@
                 <div class="card-title">{{ novel.title }}</div>
                 <div class="card-author">{{ novel.author }}</div>
                 <div class="card-tag" v-if="novel.platform">{{ novel.platform }}</div>
-                <div class="select-indicator" v-if="isSelectionMode"><i class="ri-check-line" v-if="isSelected(novel.id, 'novel')"></i></div>
+                <div class="select-indicator" v-if="isSelectionMode">
+                    <i class="ri-check-line" v-if="isSelected(novel.id, 'novel')"></i>
+                </div>
             </div>
         </div>
     </div>
+    <!-- 主界面结束 -->
 
     <!-- 底部多选操作栏 -->
     <div class="selection-bar" :class="{show: isSelectionMode}">
@@ -72,7 +77,7 @@
         </button>
     </div>
 
-    <!-- FAB -->
+    <!-- 悬浮按钮 (FAB) -->
     <div class="fab-container" :class="{open: showFabMenu && !isSelectionMode}" v-show="!isSelectionMode">
         <div class="fab-item" @click="openAddModal('manual')"><i class="ri-edit-line"></i></div>
         <div class="fab-item" @click="openAddModal('folder')"><i class="ri-folder-add-line"></i></div>
@@ -144,7 +149,7 @@
         </div>
     </div>
 
-    <!-- 筛选/搜索结果 -->
+    <!-- 筛选/搜索结果页面 -->
     <div class="full-view" :class="{show: showFilteredView}"
          @touchstart="handleSettingsTouchStart" @touchend="handleGenericSwipeBack($event, closeFilteredView)">
         <div class="header" style="padding:20px;">
@@ -206,7 +211,7 @@
         </div>
     </div>
 
-    <!-- 统一添加/编辑弹窗 -->
+    <!-- 添加/编辑弹窗 -->
     <div class="modal-mask" :class="{show: showAddModal}" @click.self="closeAddModal">
         <div class="modal-card">
             <h3 class="modal-title">
@@ -269,7 +274,7 @@
         </div>
     </div>
 
-    <!-- 模型选择 -->
+    <!-- 模型选择弹窗 -->
     <div class="modal-mask" :class="{show: showModelPicker}" @click.self="showModelPicker = false">
         <div class="modal-card" style="height: 60vh;">
             <h3 class="modal-title">选择模型</h3>
@@ -287,7 +292,7 @@
         </div>
     </div>
     
-    <!-- 供应商选择 -->
+    <!-- API 供应商选择弹窗 -->
      <div class="modal-mask" :class="{show: showProviderPicker}" @click.self="showProviderPicker = false">
         <div class="modal-card">
             <h3 class="modal-title">选择 API 供应商</h3>
@@ -296,7 +301,7 @@
         </div>
     </div>
 
-    <!-- 确认弹窗 -->
+    <!-- 确认操作弹窗 -->
     <div class="modal-mask" :class="{show: showConfirmModal}" @click.self="closeConfirm">
         <div class="modal-card">
             <div class="confirm-text">{{ confirmMessage }}</div>
@@ -307,7 +312,7 @@
         </div>
     </div>
 
-    <!-- 操作菜单 -->
+    <!-- 底部操作菜单 (Action Sheet) -->
     <div class="action-mask" :class="{show: showActionSheet}" @click="closeActionSheet"></div>
     <div class="action-sheet" :class="{show: showActionSheet}">
         <div class="action-title">
@@ -320,7 +325,7 @@
         <button class="btn btn-cancel" @click="closeActionSheet">取消</button>
     </div>
 
-    <!-- 裁剪 (修复层级) -->
+    <!-- 图片裁剪弹窗 -->
     <div class="cropper-modal" v-if="showCropper">
         <div class="cropper-container">
             <!-- 画布层 -->
@@ -330,6 +335,7 @@
                  @touchend.stop="cropTouchEnd">
                 <img :src="tempBgSrc" class="crop-target-img" ref="cropImg" @load="initCropBox">
                 <div class="crop-overlay"></div>
+                <!-- 裁剪框 -->
                 <div class="crop-box" v-if="cropBox.w" :style="cropBoxStyle">
                     <div class="crop-grid-line v v1"></div><div class="crop-grid-line v v2"></div>
                     <div class="crop-grid-line h h1"></div><div class="crop-grid-line h h2"></div>
@@ -348,7 +354,7 @@
         </div>
     </div>
     
-    <!-- Toast -->
+    <!-- 提示框 (Toast) -->
     <div class="toast-container" :class="{show: toastVisible}">
         <div class="toast">
             <i class="ri-information-line"></i>
@@ -356,10 +362,12 @@
         </div>
     </div>
 
+    <!-- 加载动画 -->
     <div class="loading-overlay" v-if="isLoading">
         <i class="ri-loader-4-line ri-spin simple-loader"></i>
     </div>
 
+    <!-- 隐藏的文件输入框 -->
     <input type="file" id="bgInput" accept="image/*" @change="handleBgSelect">
     <input type="file" id="importInput" accept=".json" @change="handleImportData">
 </div>

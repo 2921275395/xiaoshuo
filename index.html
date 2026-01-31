@@ -112,13 +112,11 @@
             </div>
             
             <h3 class="section-title">AI 设置</h3>
-            <!-- 供应商选择 -->
             <div class="input-glass select-trigger" @click="showProviderPicker = true">
                  <span>{{ apiProvider === 'zhipu' ? '智谱 AI' : 'OpenAI (及公益站)' }}</span>
                  <i class="ri-arrow-down-s-line"></i>
             </div>
             
-            <!-- 分离的 Key 输入框 -->
             <div v-if="apiProvider === 'zhipu'">
                 <input type="password" v-model="zhipuKey" class="input-glass" placeholder="智谱 API Key">
                 <div style="font-size:12px; opacity:0.6; margin-bottom:10px;">* 自动使用 GLM-4V 模型</div>
@@ -173,9 +171,9 @@
         <div class="full-view-content">
             <div class="detail-header">
                 <div class="detail-title">{{ activeNovel.title }}</div>
-                <!-- 作者可点击 -->
-                <div class="detail-author clickable" @click="filterByAuthor(activeNovel.author)">
-                    {{ activeNovel.author }} <i class="ri-arrow-right-s-line" style="font-size:12px; vertical-align:middle;"></i>
+                <!-- 干净的作者名，无下划线 -->
+                <div class="detail-author clean-author" @click="filterByAuthor(activeNovel.author)">
+                    {{ activeNovel.author }}
                 </div>
                 <div class="detail-platform">{{ activeNovel.platform }}</div>
             </div>
@@ -184,18 +182,19 @@
                 <div style="font-size:16px;">{{ formatDate(activeNovel.createTime) }}</div>
             </div>
             
-            <!-- 多重阅读日期 -->
+            <!-- 极简阅读日期 -->
             <div class="info-block">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <label style="margin:0;">阅读记录</label>
-                    <div class="add-date-btn" @click="addReadDate"><i class="ri-add-line"></i></div>
+                    <label style="margin:0;">阅读记录 (长按删除)</label>
+                    <div class="add-date-btn-clean" @click="addReadDate"><i class="ri-add-line"></i></div>
                 </div>
                 <div class="date-tags">
-                    <div v-for="(date, idx) in activeNovel.readDates" :key="idx" class="date-tag">
+                    <div v-for="(date, idx) in activeNovel.readDates" :key="idx" 
+                         class="date-tag-clean" 
+                         @touchstart="startDateLongPress(idx)" @touchend="cancelLongPress" @contextmenu.prevent>
                         <input type="date" v-model="activeNovel.readDates[idx]" class="date-input-mini">
-                        <i class="ri-close-line remove-date" @click="removeReadDate(idx)"></i>
                     </div>
-                    <div v-if="!activeNovel.readDates || activeNovel.readDates.length === 0" style="opacity:0.5; font-size:13px;">暂无记录，点击 + 添加</div>
+                    <div v-if="!activeNovel.readDates || activeNovel.readDates.length === 0" style="opacity:0.5; font-size:13px;">暂无记录</div>
                 </div>
             </div>
 
@@ -304,21 +303,38 @@
         <button class="btn btn-cancel" @click="closeActionSheet">取消</button>
     </div>
 
-    <!-- 裁剪 (修复版) -->
+    <!-- 裁剪 (完全重构版) -->
     <div class="cropper-modal" v-if="showCropper">
-        <div class="cropper-area" ref="cropArea" @touchstart="cropTouchStart" @touchmove="cropTouchMove">
-            <img :src="tempBgSrc" class="crop-target-img" ref="cropImg" @load="initCropBox">
-            <div class="crop-box" v-if="cropBox.w" :style="cropBoxStyle">
-                <div class="crop-corner tl"></div><div class="crop-corner tr"></div>
-                <div class="crop-corner bl"></div><div class="crop-corner br"></div>
+        <!-- 容器：屏蔽底层点击 -->
+        <div class="cropper-container" @click.stop>
+            <div class="cropper-area" ref="cropArea" 
+                 @touchstart.stop="cropTouchStart" 
+                 @touchmove.stop="cropTouchMove"
+                 @touchend.stop="cropTouchEnd">
+                
+                <img :src="tempBgSrc" class="crop-target-img" ref="cropImg" @load="initCropBox">
+                
+                <!-- 遮罩层 (阴影) -->
+                <div class="crop-overlay"></div>
+                
+                <!-- 裁剪框 -->
+                <div class="crop-box" v-if="cropBox.w" :style="cropBoxStyle">
+                    <!-- 网格线 -->
+                    <div class="crop-grid-line v v1"></div><div class="crop-grid-line v v2"></div>
+                    <div class="crop-grid-line h h1"></div><div class="crop-grid-line h h2"></div>
+                    <!-- 拖拽角 -->
+                    <div class="crop-handle tl" data-handle="tl"></div>
+                    <div class="crop-handle tr" data-handle="tr"></div>
+                    <div class="crop-handle bl" data-handle="bl"></div>
+                    <div class="crop-handle br" data-handle="br"></div>
+                </div>
             </div>
-            <div class="crop-tip">
-                拖动以移动 · 双指缩放
+            
+            <div class="crop-actions-bar">
+                <button class="btn btn-cancel" style="width:100px; margin-top:0;" @click="showCropper=false">取消</button>
+                <div style="flex:1;"></div>
+                <button class="btn" style="width:140px; margin-top:0;" @click="confirmCrop">应用壁纸</button>
             </div>
-        </div>
-        <div class="crop-actions">
-            <button class="btn" style="border-color:rgba(255,255,255,0.3);" @click="showCropper=false">取消</button>
-            <button class="btn" @click="confirmCrop">应用壁纸</button>
         </div>
     </div>
     

@@ -6,11 +6,12 @@ createApp({
         const novels = ref([]);
         const folders = ref([]);
         
-        // Config
-        const apiKey = ref('');
+        // Config & Keys
+        const zhipuKey = ref('');
+        const openaiKey = ref('');
         const apiProvider = ref('zhipu');
         const apiUrl = ref('');
-        const apiModel = ref('glm-4v'); // Default to zhipu
+        const apiModel = ref('glm-4v'); 
         const modelList = ref([]);
         const bgColor = ref('#8EC5FC');
         const bgImage = ref('');
@@ -60,10 +61,10 @@ createApp({
         const cropImg = ref(null);
         const cropArea = ref(null);
         const cropBox = reactive({ x: 0, y: 0, w: 0, h: 0 });
-        let touchStartX = 0;
         let cropStartTouches = []; 
         let cropStartBox = {}; 
         let cropStartDist = 0;
+        let touchStartX = 0;
 
         // Init
         onMounted(() => {
@@ -74,7 +75,14 @@ createApp({
             if(f) folders.value = JSON.parse(f);
             if(c) {
                 const cfg = JSON.parse(c);
-                apiKey.value = cfg.apiKey || ''; 
+                zhipuKey.value = cfg.zhipuKey || '';
+                openaiKey.value = cfg.openaiKey || '';
+                // Fallback for old single key
+                if(!zhipuKey.value && !openaiKey.value && cfg.apiKey) {
+                    if(cfg.apiProvider === 'zhipu') zhipuKey.value = cfg.apiKey;
+                    else openaiKey.value = cfg.apiKey;
+                }
+                
                 bgColor.value = cfg.bgColor || '#8EC5FC'; 
                 bgImage.value = cfg.bgImage || '';
                 apiProvider.value = cfg.apiProvider || 'zhipu';
@@ -90,20 +98,19 @@ createApp({
             localStorage.setItem('rf_folders_v3', JSON.stringify(folders.value));
         }, { deep: true });
 
-        watch([apiKey, bgColor, bgImage, apiProvider, apiUrl, apiModel], () => {
+        watch([zhipuKey, openaiKey, bgColor, bgImage, apiProvider, apiUrl, apiModel], () => {
             localStorage.setItem('rf_config_v3', JSON.stringify({
-                apiKey: apiKey.value, bgColor: bgColor.value, bgImage: bgImage.value,
+                zhipuKey: zhipuKey.value, openaiKey: openaiKey.value,
+                bgColor: bgColor.value, bgImage: bgImage.value,
                 apiProvider: apiProvider.value, apiUrl: apiUrl.value, apiModel: apiModel.value
             }));
             updateBg();
         });
         
-        // Auto-switch model when provider changes
         watch(apiProvider, (newVal) => {
             if (newVal === 'zhipu') {
                 apiModel.value = 'glm-4v';
             } else {
-                // For OpenAI, reset to default if currently on zhipu model
                 if (apiModel.value === 'glm-4v') apiModel.value = 'gpt-4o';
             }
         });
@@ -126,6 +133,7 @@ createApp({
         const executeConfirm = () => { if(confirmCallback) confirmCallback(); closeConfirm(); };
 
         // Computed
+        const currentKey = computed(() => apiProvider.value === 'zhipu' ? zhipuKey.value : openaiKey.value);
         const currentItems = computed(() => [...currentFoldersList.value, ...currentNovelsList.value]);
         const currentFoldersList = computed(() => folders.value.filter(f => (f.parentId || null) === (currentFolder.value ? currentFolder.value.id : null)));
         const currentNovelsList = computed(() => novels.value.filter(n => n.folderId === (currentFolder.value ? currentFolder.value.id : null)));
@@ -146,11 +154,34 @@ createApp({
             const parentId = currentFolder.value.parentId;
             currentFolder.value = parentId ? folders.value.find(f => f.id === parentId) : null;
         };
+        
+        // Detail & Reading Dates
         const openDetail = (n) => {
-            if(!n.readDate && n.createTime) n.readDate = n.createTime.split('T')[0];
+            // Migrate single date to array
+            if (!n.readDates) {
+                n.readDates = n.readDate ? [n.readDate] : [];
+            }
             activeNovel.value = n; showDetail.value = true;
         };
+        const addReadDate = () => {
+            if (activeNovel.value) {
+                const today = new Date().toISOString().split('T')[0];
+                activeNovel.value.readDates.push(today);
+            }
+        };
+        const removeReadDate = (idx) => {
+            if (activeNovel.value) {
+                activeNovel.value.readDates.splice(idx, 1);
+            }
+        };
         const closeDetail = () => { showDetail.value = false; activeNovel.value = null; };
+
+        // Author Filter
+        const filterByAuthor = (author) => {
+            if(!author) return;
+            const res = novels.value.filter(n => n.author === author);
+            openFilteredView(`作者: ${author}`, res);
+        };
 
         // Add / Edit
         const openAddModal = (type) => {
@@ -168,7 +199,7 @@ createApp({
                 } else {
                     novels.value.unshift({
                         id: Date.now(), title: addForm.title, author: addForm.author||'佚名', platform: addForm.platform||'',
-                        folderId: currentFolder.value ? currentFolder.value.id : null, createTime: new Date().toISOString()
+                        folderId: currentFolder.value ? currentFolder.value.id : null, createTime: new Date().toISOString(), readDates: []
                     });
                 }
             } else {
@@ -246,16 +277,15 @@ createApp({
         };
 
         const fetchModels = async () => {
-            if(!apiKey.value) { showToast("请先填写 API Key"); return; }
+            if(!currentKey.value) { showToast("请先填写 API Key"); return; }
             isLoading.value = true;
             modelList.value = [];
             
             try {
                 let url;
-                let headers = { 'Authorization': `Bearer ${apiKey.value}` };
+                let headers = { 'Authorization': `Bearer ${currentKey.value}` };
                 
                 if(apiProvider.value === 'zhipu') {
-                    // Logic skipped in UI for Zhipu, but keeps here just in case
                     url = 'https://open.bigmodel.cn/api/paas/v4/models'; 
                 } else {
                     let base = apiUrl.value || 'https://api.openai.com/v1';
@@ -265,17 +295,11 @@ createApp({
                 }
 
                 const res = await fetch(url, { method: 'GET', headers });
-                
-                // --- FIX: Robust Text Handling ---
                 const text = await res.text();
-                if (!text || text.trim() === '') throw new Error("API 返回了空内容 (可能 CORS 阻止或地址错误)");
+                if (!text || text.trim() === '') throw new Error("API 返回了空内容");
 
                 let data;
-                try {
-                    data = JSON.parse(text);
-                } catch(e) {
-                    throw new Error(`非 JSON 响应 (可能是错误页): ${text.substring(0, 80)}...`);
-                }
+                try { data = JSON.parse(text); } catch(e) { throw new Error(`非 JSON 响应: ${text.substring(0, 80)}...`); }
                 
                 if(data.error) throw new Error(data.error.message || JSON.stringify(data.error));
                 
@@ -285,20 +309,14 @@ createApp({
                         const bV = b.id.includes('vision') || b.id.includes('4v');
                         return bV - aV;
                     });
-                    
                     if(modelList.value.length > 0) {
                         if(!apiModel.value) apiModel.value = modelList.value[0].id;
                         showToast(`获取成功，共 ${modelList.value.length} 个模型`);
                         showModelPicker.value = true;
-                    } else {
-                        throw new Error("模型列表为空");
-                    }
-                } else {
-                    throw new Error("格式错误: data不是数组");
-                }
+                    } else throw new Error("模型列表为空");
+                } else throw new Error("格式错误: data不是数组");
             } catch(e) {
                 showToast("连接失败: " + e.message);
-                console.error(e);
             } finally {
                 isLoading.value = false;
             }
@@ -306,7 +324,7 @@ createApp({
 
         const handleAiUpload = async(e) => {
             const f = e.target.files[0]; if(!f) return;
-            if(!apiKey.value) { showToast("请设置 API Key"); return; }
+            if(!currentKey.value) { showToast("请设置 API Key"); return; }
             isLoading.value = true; showFabMenu.value = false;
             
             const reader = new FileReader();
@@ -314,14 +332,12 @@ createApp({
             reader.onload = async() => {
                 const base64Img = reader.result.split(',')[1];
                 let url, headers, body;
-                
-                // Force Zhipu model if provider is Zhipu
                 const model = (apiProvider.value === 'zhipu') ? 'glm-4v' : (apiModel.value || 'gpt-4o');
                 
                 try {
                     if (apiProvider.value === 'zhipu') {
                         url = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
-                        headers = {'Content-Type':'application/json','Authorization':`Bearer ${apiKey.value}`};
+                        headers = {'Content-Type':'application/json','Authorization':`Bearer ${currentKey.value}`};
                         body = {
                             model: model,
                             messages: [{role:"user", content:[{type:"text", text:"提取书名,作者,平台(如起点). JSON only:{\"title\":\"\",\"author\":\"\",\"platform\":\"\"}"}, {type:"image_url", image_url:{url:base64Img}}]}]
@@ -330,7 +346,7 @@ createApp({
                         let base = apiUrl.value || 'https://api.openai.com/v1';
                         if(base.endsWith('/')) base = base.slice(0,-1);
                         url = `${base}/chat/completions`;
-                        headers = {'Content-Type':'application/json','Authorization':`Bearer ${apiKey.value}`};
+                        headers = {'Content-Type':'application/json','Authorization':`Bearer ${currentKey.value}`};
                         body = {
                             model: model, max_tokens: 300,
                             messages: [{role:"user", content:[{type:"text", text:"Extract title, author, platform. JSON only."}, {type:"image_url", image_url:{url:`data:image/jpeg;base64,${base64Img}`}}]}]
@@ -338,8 +354,6 @@ createApp({
                     }
 
                     const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
-                    
-                    // --- FIX: Robust Text Handling ---
                     const text = await res.text();
                     if (!text || text.trim() === '') throw new Error("API 返回空内容");
                     
@@ -350,18 +364,19 @@ createApp({
                     if(d.error) throw new Error(d.error.message || JSON.stringify(d.error));
                     if(!d.choices || !d.choices[0]) throw new Error("API 未返回 choices");
 
-                    const content = d.choices[0].message.content.replace(/```json|```/g,'').trim();
-                    const startIdx = content.indexOf('{');
-                    const endIdx = content.lastIndexOf('}');
-                    if(startIdx === -1 || endIdx === -1) throw new Error("AI未返回有效JSON格式");
+                    const content = d.choices[0].message.content;
+                    // --- Improved Regex for JSON extraction ---
+                    const jsonMatch = content.match(/\{[\s\S]*\}/);
                     
-                    const jsonStr = content.substring(startIdx, endIdx+1);
-                    const newNovel = JSON.parse(jsonStr);
+                    if(!jsonMatch) throw new Error("AI未返回有效JSON格式");
                     
-                    novels.value.unshift({ id: Date.now(), ...newNovel, folderId: currentFolder.value ? currentFolder.value.id : null, createTime: new Date().toISOString() });
+                    const newNovel = JSON.parse(jsonMatch[0]);
+                    
+                    novels.value.unshift({ id: Date.now(), ...newNovel, folderId: currentFolder.value ? currentFolder.value.id : null, createTime: new Date().toISOString(), readDates: [] });
                     showToast("识别成功");
                 } catch(err) { 
                     showToast("识别失败: " + err.message);
+                    console.error(err);
                 }
                 isLoading.value = false; e.target.value = '';
             };
@@ -423,12 +438,12 @@ createApp({
         const cropBoxStyle = computed(() => ({ left: cropBox.x + 'px', top: cropBox.y + 'px', width: cropBox.w + 'px', height: cropBox.h + 'px' }));
         
         const cropTouchStart = (e) => {
-            cropStartTouches = Array.from(e.touches).map(t => ({x: t.pageX, y: t.pageY}));
+            cropStartTouches = Array.from(e.touches).map(t => ({x: t.clientX, y: t.clientY})); // Use clientX/Y
             cropStartBox = { ...cropBox };
             if (e.touches.length === 2) {
                 cropStartDist = Math.hypot(
-                    e.touches[0].pageX - e.touches[1].pageX, 
-                    e.touches[0].pageY - e.touches[1].pageY
+                    e.touches[0].clientX - e.touches[1].clientX, 
+                    e.touches[0].clientY - e.touches[1].clientY
                 );
             }
         };
@@ -436,48 +451,99 @@ createApp({
         const cropTouchMove = (e) => {
             if (!showCropper.value) return;
             if (e.cancelable) e.preventDefault();
+            
             const imgRect = cropImg.value.getBoundingClientRect();
             const areaRect = cropArea.value.getBoundingClientRect();
-            const minX = imgRect.left - areaRect.left; const maxX = minX + imgRect.width;
-            const minY = imgRect.top - areaRect.top; const maxY = minY + imgRect.height;
+            
+            // Bounds relative to the area container
+            const minX = imgRect.left - areaRect.left; 
+            const maxX = minX + imgRect.width;
+            const minY = imgRect.top - areaRect.top; 
+            const maxY = minY + imgRect.height;
 
             if (e.touches.length === 1 && cropStartTouches.length >= 1) {
-                const dx = e.touches[0].pageX - cropStartTouches[0].x;
-                const dy = e.touches[0].pageY - cropStartTouches[0].y;
-                let nx = cropStartBox.x + dx; let ny = cropStartBox.y + dy;
-                if (nx < minX) nx = minX; if (ny < minY) ny = minY;
+                const dx = e.touches[0].clientX - cropStartTouches[0].x;
+                const dy = e.touches[0].clientY - cropStartTouches[0].y;
+                let nx = cropStartBox.x + dx; 
+                let ny = cropStartBox.y + dy;
+
+                // Clamp
+                if (nx < minX) nx = minX;
+                if (ny < minY) ny = minY;
                 if (nx + cropBox.w > maxX) nx = maxX - cropBox.w;
                 if (ny + cropBox.h > maxY) ny = maxY - cropBox.h;
+                
                 cropBox.x = nx; cropBox.y = ny;
+
             } else if (e.touches.length === 2 && cropStartTouches.length >= 2) {
-                const curDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+                const curDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX, 
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
                 const scale = curDist / (cropStartDist || 1);
-                const ratio = window.innerWidth / window.innerHeight;
-                let nw = cropStartBox.w * scale; let nh = nw / ratio;
-                if (nw > 50 && nw < imgRect.width && nh < imgRect.height) {
-                    const dx = (nw - cropStartBox.w) / 2; const dy = (nh - cropStartBox.h) / 2;
-                    let nx = cropStartBox.x - dx; let ny = cropStartBox.y - dy;
+                
+                let nw = cropStartBox.w * scale;
+                let nh = nw / (window.innerWidth / window.innerHeight);
+
+                // Max/Min Size Constraints
+                if (nw > 50 && nw <= imgRect.width && nh <= imgRect.height) {
+                     // Center zoom
+                    const dx = (nw - cropStartBox.w) / 2;
+                    const dy = (nh - cropStartBox.h) / 2;
+                    let nx = cropStartBox.x - dx;
+                    let ny = cropStartBox.y - dy;
+
+                    // Bound checks for zoom
                     if(nx >= minX && ny >= minY && nx+nw <= maxX && ny+nh <= maxY) {
-                        cropBox.w = nw; cropBox.h = nh; cropBox.x = nx; cropBox.y = ny;
+                         cropBox.w = nw; cropBox.h = nh; cropBox.x = nx; cropBox.y = ny;
                     }
                 }
             }
         };
 
         const confirmCrop = () => {
-            const cvs = document.createElement('canvas'); const ctx = cvs.getContext('2d');
-            const dpr = window.devicePixelRatio || 2; 
-            cvs.width = window.innerWidth * dpr; cvs.height = window.innerHeight * dpr;
-            const img = cropImg.value; const imgRect = img.getBoundingClientRect(); const areaRect = cropArea.value.getBoundingClientRect();
-            const boxRelX = cropBox.x - (imgRect.left - areaRect.left); const boxRelY = cropBox.y - (imgRect.top - areaRect.top);
-            const scaleX = img.naturalWidth / imgRect.width; const scaleY = img.naturalHeight / imgRect.height;
-            ctx.drawImage(img, boxRelX * scaleX, boxRelY * scaleY, cropBox.w * scaleX, cropBox.h * scaleY, 0, 0, cvs.width, cvs.height);
-            bgImage.value = cvs.toDataURL('image/png'); showCropper.value = false;
+            try {
+                const cvs = document.createElement('canvas'); const ctx = cvs.getContext('2d');
+                // Use screen resolution
+                const dpr = window.devicePixelRatio || 2; 
+                const screenW = window.innerWidth;
+                const screenH = window.innerHeight;
+                cvs.width = screenW * dpr; 
+                cvs.height = screenH * dpr;
+                
+                const img = cropImg.value; 
+                const imgRect = img.getBoundingClientRect(); 
+                const areaRect = cropArea.value.getBoundingClientRect();
+                
+                // Coordinates of crop box relative to image
+                // Box Absolute X - Image Absolute X = Relative X
+                // (areaRect.left + cropBox.x) - imgRect.left
+                const relX = (areaRect.left + cropBox.x) - imgRect.left;
+                const relY = (areaRect.top + cropBox.y) - imgRect.top;
+                
+                // Scale factor (Natural Size / Displayed Size)
+                const scaleX = img.naturalWidth / imgRect.width;
+                const scaleY = img.naturalHeight / imgRect.height;
+
+                ctx.drawImage(
+                    img, 
+                    relX * scaleX, relY * scaleY, 
+                    cropBox.w * scaleX, cropBox.h * scaleY, 
+                    0, 0, 
+                    cvs.width, cvs.height
+                );
+                
+                bgImage.value = cvs.toDataURL('image/png'); 
+                showCropper.value = false;
+            } catch(e) {
+                console.error(e);
+                showToast("裁剪出错");
+            }
         };
 
         // Other Actions
         const exportData = () => {
-            const b = new Blob([JSON.stringify({novels:novels.value, folders:folders.value, config:{apiKey:apiKey.value,bgColor:bgColor.value,apiProvider:apiProvider.value,apiUrl:apiUrl.value,apiModel:apiModel.value}})], {type:'application/json'});
+            const b = new Blob([JSON.stringify({novels:novels.value, folders:folders.value, config:{zhipuKey:zhipuKey.value, openaiKey:openaiKey.value, bgColor:bgColor.value,apiProvider:apiProvider.value,apiUrl:apiUrl.value,apiModel:apiModel.value}})], {type:'application/json'});
             const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'backup.json'; a.click();
         };
         const triggerImport = () => document.getElementById('importInput').click();
@@ -487,7 +553,14 @@ createApp({
             r.onload = (ev) => {
                 const d = JSON.parse(ev.target.result);
                 novels.value = d.novels||[]; folders.value = d.folders||[];
-                if(d.config) { apiKey.value=d.config.apiKey; bgColor.value=d.config.bgColor; apiProvider.value=d.config.apiProvider||'zhipu'; apiUrl.value=d.config.apiUrl||''; apiModel.value=d.config.apiModel||''; }
+                if(d.config) { 
+                    zhipuKey.value = d.config.zhipuKey || d.config.apiKey || ''; // Compat
+                    openaiKey.value = d.config.openaiKey || '';
+                    bgColor.value=d.config.bgColor; 
+                    apiProvider.value=d.config.apiProvider||'zhipu'; 
+                    apiUrl.value=d.config.apiUrl||''; 
+                    apiModel.value=d.config.apiModel||''; 
+                }
                 showToast("导入成功");
             };
             r.readAsText(f);
@@ -505,19 +578,19 @@ createApp({
         };
 
         return {
-            novels, folders, apiKey, bgColor, bgImage, apiProvider, apiUrl, apiModel, searchQuery, modelList,
+            novels, folders, zhipuKey, openaiKey, bgColor, bgImage, apiProvider, apiUrl, apiModel, searchQuery, modelList,
             showSettings, showDetail, showFilteredView, showFabMenu, showActionSheet, showCropper, isLoading,
             showAddModal, addFormMode, addFormType, addForm, showConfirmModal, confirmMessage, toastVisible, toastMsg,
             isSelectionMode, selectedItems, showMoveModal, moveTargetId, movePath, moveCurrentSubfolders,
             currentFolder, currentItems, currentFoldersList, currentNovelsList, activeNovel, filteredList, filterTitle, novelsByPlatform,
             selectedItem, selectedType, tempBgSrc, cropImg, cropArea, cropBox, cropBoxStyle, showModelPicker, showProviderPicker,
-            openDetail, closeDetail, formatDate, enterFolder, openFilteredView, closeFilteredView, performSearch,
+            openDetail, closeDetail, formatDate, enterFolder, openFilteredView, closeFilteredView, performSearch, filterByAuthor,
             openAddModal, closeAddModal, confirmAddOrEdit, openEditModalFromSheet, openRenameFromSheet,
             enterSelectionModeFromSheet, exitSelectionMode, isSelected, handleCardClick,
             openMoveModal, closeMoveModal, enterMoveFolder, moveNavTo, confirmMove,
             openConfirm, closeConfirm, executeConfirm, showToast, openModelPicker, selectModel,
             handleTouchStart, handleMainTouchEnd, handleSettingsTouchEnd, handleGenericSwipeBack,
-            startLongPress, cancelLongPress, closeActionSheet, deleteItem,
+            startLongPress, cancelLongPress, closeActionSheet, deleteItem, addReadDate, removeReadDate,
             triggerBgUpload, handleBgSelect, removeBg, initCropBox, cropTouchStart, cropTouchMove, confirmCrop, 
             exportData, triggerImport, handleImportData, clearData, handleAiUpload, fetchModels
         };

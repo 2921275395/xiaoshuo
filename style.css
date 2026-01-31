@@ -229,39 +229,59 @@ body {
 }
 .selection-bar.show { transform: translateY(0); }
 
-/* Cropper */
+/* New Cropper Styles */
 .cropper-modal {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: #111; z-index: 600; display: flex; flex-direction: column;
+    background: #000; z-index: 600; 
+    display: flex; flex-direction: column;
+}
+.cropper-container {
+    width: 100%; height: 100%; display: flex; flex-direction: column;
 }
 .cropper-area {
     flex: 1; position: relative; overflow: hidden;
     display: flex; align-items: center; justify-content: center;
+    touch-action: none; background: #111;
+}
+.crop-target-img { max-width: 90%; max-height: 90%; pointer-events: none; opacity: 0.5; }
+.crop-box {
+    position: absolute; 
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(255,255,255,0.8);
     touch-action: none;
 }
-.crop-target-img { max-width: 95%; max-height: 95%; pointer-events: none; }
-.crop-box {
-    position: absolute; border: 2px solid rgba(255,255,255,0.9);
-    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
-    touch-action: none; box-sizing: border-box;
+/* Grid lines */
+.crop-grid-line { position: absolute; background: rgba(255,255,255,0.3); pointer-events: none; }
+.v { width: 1px; height: 100%; top: 0; }
+.h { height: 1px; width: 100%; left: 0; }
+.v1 { left: 33.3%; } .v2 { left: 66.6%; }
+.h1 { top: 33.3%; } .h2 { top: 66.6%; }
+
+/* Handles */
+.crop-handle {
+    position: absolute; width: 20px; height: 20px;
+    background: white; border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
-.crop-corner {
-    position: absolute; width: 20px; height: 20px; border: 3px solid white;
-    border-radius: 4px;
+.tl { top: 0; left: 0; }
+.tr { top: 0; left: 100%; }
+.bl { top: 100%; left: 0; }
+.br { top: 100%; left: 100%; }
+
+.crop-actions-bar {
+    padding: 20px; display: flex; gap: 20px; background: black;
+    z-index: 610; justify-content: space-between;
 }
-.tl { top: -3px; left: -3px; border-right: none; border-bottom: none; }
-.tr { top: -3px; right: -3px; border-left: none; border-bottom: none; }
-.bl { bottom: -3px; left: -3px; border-right: none; border-top: none; }
-.br { bottom: -3px; right: -3px; border-left: none; border-top: none; }
-.crop-tip { position: absolute; top: 30px; width: 100%; text-align: center; color: rgba(255,255,255,0.8); font-size:14px; text-shadow: 0 1px 2px black; pointer-events: none; }
-.crop-actions { padding: 30px; display: flex; gap: 20px; background: #000; }
 
 /* Detail Info */
 .detail-header { text-align: center; margin-bottom: 30px; margin-top: 20px; }
 .detail-title { font-size: 28px; font-weight: bold; margin-bottom: 10px; text-shadow: var(--text-shadow); }
-.detail-author { opacity: 0.8; text-shadow: var(--text-shadow); font-size: 16px; }
-.detail-author.clickable { text-decoration: underline; text-decoration-color: rgba(255,255,255,0.4); text-underline-offset: 4px; }
-.detail-author.clickable:active { opacity: 0.6; }
+.clean-author { 
+    opacity: 0.9; text-shadow: var(--text-shadow); font-size: 16px; 
+    font-weight: 500;
+}
+.clean-author:active { opacity: 0.6; } /* Subtle feedback */
 .detail-platform { font-size: 12px; opacity: 0.6; margin-top: 5px; }
 
 .info-block {
@@ -273,21 +293,19 @@ body {
 .date-input { background: none; border: none; color: white; width: 100%; font-size: 16px; font-family: inherit; }
 .review-area { width: 100%; background: none; border: none; color: white; resize: none; min-height: 180px; font-size: 16px; line-height: 1.5; font-family: inherit; }
 
-/* Date Tags */
-.date-tags { display: flex; flex-wrap: wrap; gap: 8px; }
-.date-tag { 
-    background: rgba(255,255,255,0.1); border-radius: 8px; padding: 5px 10px; 
-    display: flex; align-items: center; gap: 8px;
+/* Clean Date Tags */
+.date-tags { display: flex; flex-wrap: wrap; gap: 15px; }
+.date-tag-clean { 
+    padding: 2px 0; display: flex; align-items: center; 
 }
 .date-input-mini { 
-    background: none; border: none; color: white; font-family: inherit; font-size: 14px; width: 110px;
+    background: none; border: none; color: white; font-family: inherit; font-size: 16px; 
+    width: auto; opacity: 0.9;
 }
-.remove-date { opacity: 0.6; font-size: 16px; padding: 2px; }
-.add-date-btn { 
-    width: 24px; height: 24px; background: rgba(255,255,255,0.2); border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; font-size: 18px;
+.add-date-btn-clean { 
+    font-size: 20px; opacity: 0.7; padding: 5px;
 }
-.add-date-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.3); }
+.add-date-btn-clean:active { opacity: 1; transform: scale(1.1); }
 
 /* Minimal Loader */
 .loading-overlay {

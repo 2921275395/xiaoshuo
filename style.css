@@ -234,7 +234,7 @@ body {
 .crop-actions-bar {
     padding: 20px; display: flex; gap: 20px; background: black;
     z-index: 610; justify-content: space-between;
-    position: relative; /* Ensure it's not covered */
+    position: relative; 
 }
 
 /* Detail Info */
